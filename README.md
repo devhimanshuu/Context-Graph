@@ -11,10 +11,12 @@ the architecture is **completely domain-agnostic** and will later support
 hospitals, finance, legal firms, software companies, universities,
 manufacturing, and other organizations.
 
-> **Status: Phase 1 — Foundation.** This repository is the production-ready
-> project foundation. No business logic (graph traversal, rule engine,
-> permissions, auth, data models) has been implemented yet — see
-> [Roadmap](#roadmap).
+> **Status: Phase 2 — Foundation + data layer.** The production-ready project
+> foundation ships with a complete, domain-agnostic database layer (schema,
+> migrations, seed, repository contracts). No business logic (graph traversal,
+> rule engine, permissions, auth) has been implemented yet — see
+> [Roadmap](#roadmap). The healthcare assessment is expressed purely as seed
+> data.
 
 ---
 
@@ -49,18 +51,18 @@ system, validated configuration, and a professional enterprise dashboard.
 
 ## Tech stack
 
-| Concern         | Choice                                 |
-| --------------- | -------------------------------------- |
-| Frontend        | Next.js 15 (App Router), TypeScript    |
-| Styling         | Tailwind CSS v4, shadcn/ui             |
-| Backend         | Next.js Route Handlers                 |
-| Database        | Supabase PostgreSQL (Phase 2)          |
-| Database client | Prisma 6 (client wired, no models yet) |
-| Validation      | Zod                                    |
-| Authentication  | Supabase Auth (Phase 2)                |
-| Charts          | Recharts (Phase 2+)                    |
-| Graph viz       | React Flow (Phase 2+)                  |
-| Deployment      | Vercel                                 |
+| Concern         | Choice                              |
+| --------------- | ----------------------------------- |
+| Frontend        | Next.js 15 (App Router), TypeScript |
+| Styling         | Tailwind CSS v4, shadcn/ui          |
+| Backend         | Next.js Route Handlers              |
+| Database        | Supabase PostgreSQL                 |
+| Database client | Prisma 6 (models, migrations, seed) |
+| Validation      | Zod                                 |
+| Authentication  | Supabase Auth (Phase 2)             |
+| Charts          | Recharts (Phase 2+)                 |
+| Graph viz       | React Flow (Phase 2+)               |
+| Deployment      | Vercel                              |
 
 ## Architecture
 
@@ -71,6 +73,7 @@ Route handler (HTTP adapter)        src/app/api/**
   → Controller (orchestration)      src/controllers/**
     → Service (business logic)      src/services/**
       → Repository (data access)    src/repositories/**
+        → Prisma client             src/prisma/client.ts → Supabase
 ```
 
 - Route handlers are thin HTTP adapters; all responses flow through
@@ -78,7 +81,11 @@ Route handler (HTTP adapter)        src/app/api/**
 - Controllers orchestrate; they hold no business logic.
 - Services hold business logic and depend on interfaces, never on the
   framework or the data store directly.
-- Repositories are the only layer that talks to Prisma.
+- Repositories are the only layer that talks to Prisma; Phase 2 ships the
+  repository **contracts** (`src/repositories/**`), the canonical domain
+  models (`src/domain/models/**`), validation schemas and DTOs, and the full
+  Prisma schema (`src/prisma/schema.prisma`). See
+  [docs/database.md](docs/database.md) for the data-layer design.
 - Errors are centralized (`src/lib/errors`); every failure returns a uniform
   envelope and is logged by severity.
 - Logging is interface-based (`src/services/logging`); the console backend can
@@ -104,22 +111,31 @@ See [docs/architecture.md](docs/architecture.md) for the full design rationale.
 │   │   ├── layout/              #   Dashboard shell (sidebar, header, ...)
 │   │   └── dashboard/           #   Dashboard building blocks
 │   ├── config/                  # Validated, centralized configuration
-│   ├── constants/               # App metadata, routes, API constants
+│   │   ├── env.ts               #   Application environment
+│   │   └── database.ts          #   Database configuration (fail-fast)
+│   ├── constants/               # App metadata, routes, API, domain enums
 │   ├── controllers/             # Thin orchestration layer
-│   ├── dto/                     # Data-transfer objects (API boundary)
-│   ├── features/                # Feature-first modules (Phase 2+)
+│   ├── domain/                  # Domain layer (DDD)
+│   │   ├── base.ts              #   Shared entity contracts
+│   │   ├── enums.ts             #   Domain enum unions
+│   │   └── models/              #   Canonical entity interfaces
+│   ├── dto/                     # Request/response DTOs (API boundary)
+│   ├── features/                # Feature-first modules (Phase 3+)
 │   ├── hooks/                   # Reusable React hooks
 │   ├── lib/                     # Framework-adjacent infrastructure
-│   │   ├── errors/              #   Centralized error architecture
+│   │   ├── errors/              #   Error architecture (+ database errors)
 │   │   └── http/                #   HTTP helpers (error handler)
-│   ├── prisma/                  # Prisma schema + client singleton
+│   ├── prisma/                  # Prisma schema, migrations, client, seed
+│   │   ├── migrations/          #   Versioned SQL migrations
+│   │   ├── schema.prisma        #   Data model (Phase 2)
+│   │   └── seed.ts              #   Idempotent seed (healthcare + finance)
 │   ├── providers/               # App-wide providers (theme, ...)
-│   ├── repositories/            # Data access layer
+│   ├── repositories/            # Repository contracts (data access)
 │   ├── services/                # Business logic layer (logging, health)
 │   ├── styles/                  # Global styles (via app/globals.css)
-│   ├── types/                   # Shared domain-agnostic types
+│   ├── types/                   # Generic types (pagination, utility, API)
 │   ├── utils/                   # Pure, reusable helpers
-│   └── validations/             # Zod schemas (env, common)
+│   └── validations/             # Zod schemas (env, database, entities)
 ```
 
 ## Development setup
@@ -159,7 +175,13 @@ Verify the API layer at http://localhost:3000/api/health.
 | `npm run format`       | Format everything with Prettier       |
 | `npm run format:check` | Verify formatting                     |
 | `npm run typecheck`    | Type-check with `tsc --noEmit`        |
-| `npm run prisma:*`     | Prisma tooling (`generate`, `studio`) |
+| `npm run db:generate`  | Generate the Prisma client            |
+| `npm run db:validate`  | Validate the Prisma schema            |
+| `npm run db:migrate`   | Dev migration (create + apply + seed) |
+| `npm run db:deploy`    | Apply migrations (CI/CD, no prompts)  |
+| `npm run db:reset`     | Reset DB, re-apply migrations + seed  |
+| `npm run db:seed`      | Run the idempotent seed               |
+| `npm run db:studio`    | Open Prisma Studio                    |
 
 ## Coding standards
 
@@ -180,27 +202,29 @@ Verify the API layer at http://localhost:3000/api/health.
 
 ## Environment variables
 
-| Variable       | Required | Description                                      |
-| -------------- | -------- | ------------------------------------------------ |
-| `NODE_ENV`     | no       | `development` / `test` / `production`            |
-| `APP_URL`      | no       | Public base URL of the app                       |
-| `LOG_LEVEL`    | no       | `debug` / `info` / `warn` / `error`              |
-| `DATABASE_URL` | no*      | Supabase PostgreSQL connection string (*Phase 2) |
+| Variable       | Required | Description                                                                                                        |
+| -------------- | -------- | ------------------------------------------------------------------------------------------------------------------ |
+| `NODE_ENV`     | no       | `development` / `test` / `production`                                                                              |
+| `APP_URL`      | no       | Public base URL of the app                                                                                         |
+| `LOG_LEVEL`    | no       | `debug` / `info` / `warn` / `error`                                                                                |
+| `DATABASE_URL` | no*      | Supabase PostgreSQL connection string (*required for migrations/seed/repositories; the app shell boots without it) |
 
 See `.env.example` for the documented template.
 
 ## Roadmap
 
-| Phase | Scope                                                                                                                                                      |
-| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | **Foundation** — architecture, tooling, error handling, logging, dashboard shell _(this phase)_                                                            |
-| 2     | Data models, Supabase + Prisma wiring, authentication, knowledge graph schema & traversal (BFS), React Flow visualization, organization/workspace settings |
-| 3     | Deterministic rule engine, permission-aware filtering, context assembly, charts (Recharts)                                                                 |
-| 4     | AI integrations (context payloads for LLMs), audit/compliance, multi-tenant hardening, observability (Sentry/Datadog)                                      |
+| Phase | Scope                                                                                                                                                                    |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1     | **Foundation** — architecture, tooling, error handling, logging, dashboard shell _(done)_                                                                                |
+| 2     | **Data layer** — Prisma schema (generic core: org/workspace/node/edge/profile/rule), migrations, seed, repository contracts, domain models, DTOs, database docs _(done)_ |
+| 3     | Authentication (Supabase Auth), graph traversal & BFS, permission compiler, rule engine, React Flow visualization, first business APIs                                   |
+| 4     | Context assembly for AI, node versioning, analytics (Recharts), multi-tenant hardening, observability (Sentry/Datadog)                                                   |
 
 ## Documentation
 
 - [docs/architecture.md](docs/architecture.md) — architecture, layers,
   principles and rationale.
+- [docs/database.md](docs/database.md) — database design: ER diagram, entity
+  purposes, index strategy, scaling, migrations, future extensibility.
 - Layer convention guides live as `README.md` files inside each `src/*`
   folder (`services`, `repositories`, `features`, `app/api`, ...).
