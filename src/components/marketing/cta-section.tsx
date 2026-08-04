@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Reveal } from './reveal'
 import { ROUTES } from '@/constants'
 
 /**
@@ -9,10 +10,10 @@ import { ROUTES } from '@/constants'
 export function CtaSection() {
   return (
     <section id="security" className="scroll-mt-20 border-t py-20 lg:py-24">
-      <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
+      <div className="mx-auto w-full max-w-full px-4 md:px-8 lg:px-12">
         <div className="border-border/80 via-background relative overflow-hidden rounded-3xl border bg-gradient-to-br from-indigo-500/10 to-fuchsia-500/10 px-6 py-16 text-center sm:px-12">
           <div className="cg-grid-bg absolute inset-0" aria-hidden="true" />
-          <div className="relative mx-auto max-w-2xl">
+          <Reveal className="relative mx-auto max-w-2xl">
             <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
               Ground your AI in knowledge you can prove
             </h2>
@@ -31,7 +32,7 @@ export function CtaSection() {
                 <Link href={ROUTES.dashboard}>Take a look around</Link>
               </Button>
             </div>
-          </div>
+          </Reveal>
         </div>
       </div>
     </section>

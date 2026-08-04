@@ -1,4 +1,5 @@
 import { Database, KeyRound, Sparkles } from 'lucide-react'
+import { Reveal } from './reveal'
 
 const STEPS = [
   {
@@ -30,33 +31,40 @@ const STEPS = [
 export function HowItWorks() {
   return (
     <section id="how-it-works" className="bg-muted/30 scroll-mt-20 border-y py-20 lg:py-24">
-      <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
-        <div className="mx-auto max-w-2xl text-center">
-          <p className="text-primary text-sm font-semibold">How it works</p>
+      <div className="mx-auto w-full max-w-full px-4 md:px-8 lg:px-12">
+        <Reveal className="mx-auto max-w-2xl text-center">
+          <p className="text-primary font-mono text-xs font-medium tracking-[0.2em] uppercase">
+            How it works
+          </p>
           <h2 className="mt-2 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
             From raw knowledge to grounded AI context
           </h2>
-        </div>
+        </Reveal>
 
         <ol className="relative mt-14 grid gap-10 lg:grid-cols-3 lg:gap-8">
           <div
             className="absolute top-6 right-[16%] left-[16%] hidden border-t border-dashed lg:block"
             aria-hidden="true"
           />
-          {STEPS.map((item) => (
-            <li key={item.step} className="relative flex flex-col items-center gap-4 text-center">
-              <div className="bg-background border-border flex size-12 items-center justify-center rounded-full border shadow-sm">
-                <item.icon className="text-primary size-5" />
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
-                  Step {item.step}
-                </p>
-                <h3 className="mt-1 text-lg font-semibold">{item.title}</h3>
-                <p className="text-muted-foreground mx-auto mt-2 max-w-xs text-sm leading-relaxed">
-                  {item.description}
-                </p>
-              </div>
+          {STEPS.map((item, index) => (
+            <li key={item.step} className="relative flex flex-col items-center text-center">
+              <Reveal
+                delay={index * 140}
+                className="flex h-full flex-col items-center gap-4 text-center"
+              >
+                <div className="bg-background border-border flex size-12 items-center justify-center rounded-full border shadow-sm">
+                  <item.icon className="text-primary size-5" />
+                </div>
+                <div>
+                  <p className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
+                    Step {item.step}
+                  </p>
+                  <h3 className="mt-1 text-lg font-semibold">{item.title}</h3>
+                  <p className="text-muted-foreground mx-auto mt-2 max-w-xs text-sm leading-relaxed">
+                    {item.description}
+                  </p>
+                </div>
+              </Reveal>
             </li>
           ))}
         </ol>

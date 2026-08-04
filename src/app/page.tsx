@@ -5,6 +5,7 @@ import { FeatureGrid } from '@/components/marketing/feature-grid'
 import { HowItWorks } from '@/components/marketing/how-it-works'
 import { ArchitectureSection } from '@/components/marketing/architecture-section'
 import { CtaSection } from '@/components/marketing/cta-section'
+import { Reveal } from '@/components/marketing/reveal'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { APP } from '@/constants'
 
@@ -33,17 +34,18 @@ export default function LandingPage() {
         {/* Industry strip */}
         <section className="border-y py-10">
           <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
-            <p className="text-muted-foreground text-center text-xs font-medium tracking-widest uppercase">
-              Domain-agnostic by design — deployed across regulated industries
-            </p>
+            <Reveal>
+              <p className="text-muted-foreground text-center text-xs font-medium tracking-widest uppercase">
+                Domain-agnostic by design — deployed across regulated industries
+              </p>
+            </Reveal>
             <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-              {INDUSTRIES.map((industry) => (
-                <span
-                  key={industry}
-                  className="text-muted-foreground border-border/80 hover:border-primary/40 hover:text-foreground rounded-full border px-3.5 py-1.5 text-sm transition-colors"
-                >
-                  {industry}
-                </span>
+              {INDUSTRIES.map((industry, index) => (
+                <Reveal key={industry} delay={index * 60}>
+                  <span className="text-muted-foreground border-border/80 hover:border-primary/40 hover:text-foreground rounded-full border px-3.5 py-1.5 text-sm transition-colors">
+                    {industry}
+                  </span>
+                </Reveal>
               ))}
             </div>
           </div>

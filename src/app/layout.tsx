@@ -1,23 +1,10 @@
 import type { Metadata, Viewport } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
-import { Geist, Geist_Mono } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { APP } from '@/constants'
 import { ThemeProvider } from '@/providers/theme-provider'
 import './globals.css'
-
-// Geist is exposed as CSS variables so Tailwind's `font-sans`/`font-mono`
-// utilities resolve to them (see `@theme` in globals.css).
-const geistSans = Geist({
-  variable: '--font-sans',
-  subsets: ['latin'],
-})
-
-const geistMono = Geist_Mono({
-  variable: '--font-mono',
-  subsets: ['latin'],
-})
 
 export const metadata: Metadata = {
   title: {
@@ -43,7 +30,7 @@ export default function RootLayout({
   return (
     <ClerkProvider appearance={{ elements: { footer: 'hidden' } }}>
       <html lang="en" suppressHydrationWarning>
-        <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
+        <body className="font-sans antialiased">
           <ThemeProvider
             attribute="class"
             defaultTheme="system"

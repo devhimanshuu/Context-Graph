@@ -12,6 +12,32 @@ export type JsonValue =
 /** Maybe: the value or null or undefined. */
 export type Maybe<T> = T | null | undefined
 
+/** Optional: the value or undefined (application-layer update semantics). */
+export type Optional<T> = T | undefined
+
+/** Nullable: the value or null (database NULL semantics). */
+export type Nullable<T> = T | null
+
+/**
+ * ISO-8601 timestamp used on the wire (DTOs, events). Domain models use
+ * `Date`; mappers convert at the boundary.
+ */
+export type Timestamp = string
+
+/**
+ * Deep readonly: recurses into objects and arrays so entire contract trees can
+ * be frozen at the type level (e.g. pipeline contexts handed to stages).
+ */
+export type DeepReadonly<T> = T extends (...args: never[]) => unknown
+  ? T
+  : T extends ReadonlyArray<unknown>
+    ? DeepReadonlyArray<T[number]>
+    : T extends object
+      ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+      : T
+
+type DeepReadonlyArray<T> = ReadonlyArray<DeepReadonly<T>>
+
 /** Deep partial: recurses into objects and arrays. */
 export type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]

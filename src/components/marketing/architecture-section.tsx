@@ -1,3 +1,5 @@
+import { Reveal } from './reveal'
+
 const LAYERS = [
   {
     name: 'Presentation',
@@ -37,13 +39,15 @@ const LAYERS = [
 export function ArchitectureSection() {
   return (
     <section id="architecture" className="scroll-mt-20 py-20 lg:py-24">
-      <div className="mx-auto grid w-full max-w-6xl items-center gap-12 px-4 md:px-6 lg:grid-cols-2">
-        <div>
-          <p className="text-primary text-sm font-semibold">Architecture</p>
+      <div className="mx-auto grid w-full max-w-full items-center gap-12 px-4 md:px-8 lg:grid-cols-2 lg:px-12">
+        <Reveal direction="left" className="max-w-lg">
+          <p className="text-primary font-mono text-xs font-medium tracking-[0.2em] uppercase">
+            Architecture
+          </p>
           <h2 className="mt-2 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
             Clean layering that survives years of teams
           </h2>
-          <p className="text-muted-foreground mt-4 max-w-lg leading-relaxed">
+          <p className="text-muted-foreground mt-4 leading-relaxed">
             Feature-first and clean-architecture: dependency inversion keeps business logic
             decoupled from the framework and the data store. Engines land as generic modules on
             stable contracts — never as framework-specific monoliths.
@@ -64,20 +68,21 @@ export function ArchitectureSection() {
               </li>
             ))}
           </ul>
-        </div>
+        </Reveal>
 
         <div className="flex flex-col gap-2" aria-label="Architecture layers">
           {LAYERS.map((layer, index) => (
-            <div
-              key={layer.name}
-              className={`flex items-center justify-between gap-4 rounded-xl border px-5 py-3.5 transition-transform duration-200 hover:translate-x-1 ${layer.tone}`}
-            >
-              <div>
-                <p className="text-sm font-semibold">{layer.name}</p>
-                <p className="text-muted-foreground text-xs">{layer.detail}</p>
+            <Reveal key={layer.name} direction="right" delay={index * 100}>
+              <div
+                className={`flex items-center justify-between gap-4 rounded-xl border px-5 py-3.5 transition-transform duration-200 hover:translate-x-1 ${layer.tone}`}
+              >
+                <div>
+                  <p className="text-sm font-semibold">{layer.name}</p>
+                  <p className="text-muted-foreground text-xs">{layer.detail}</p>
+                </div>
+                <span className="text-muted-foreground/60 font-mono text-xs">{index + 1}</span>
               </div>
-              <span className="text-muted-foreground/60 font-mono text-xs">{index + 1}</span>
-            </div>
+            </Reveal>
           ))}
         </div>
       </div>

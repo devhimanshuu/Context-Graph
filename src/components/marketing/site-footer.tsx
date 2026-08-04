@@ -25,7 +25,7 @@ const FOOTER_COLUMNS = [
 export function SiteFooter() {
   return (
     <footer className="border-t py-12">
-      <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
+      <div className="mx-auto w-full max-w-full px-4 md:px-8 lg:px-12">
         <div className="grid gap-10 md:grid-cols-[1.5fr_1fr_1fr]">
           <div className="space-y-3">
             <AppLogo />

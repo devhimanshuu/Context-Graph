@@ -19,6 +19,15 @@ export const ErrorCode = {
   FOREIGN_KEY_VIOLATION: 'FOREIGN_KEY_VIOLATION',
   DATABASE_CONNECTION_ERROR: 'DATABASE_CONNECTION_ERROR',
   DATABASE_CONFIGURATION_ERROR: 'DATABASE_CONFIGURATION_ERROR',
+  // --- Application layer (Phase 3) ---
+  // Layer-qualified codes so operations can route alerts differently
+  // (e.g. a traversal failure is retryable, a permission failure is not).
+  PIPELINE_ERROR: 'PIPELINE_ERROR',
+  TRAVERSAL_ERROR: 'TRAVERSAL_ERROR',
+  PERMISSION_ERROR: 'PERMISSION_ERROR',
+  RULE_ENGINE_ERROR: 'RULE_ENGINE_ERROR',
+  CANDIDATE_ERROR: 'CANDIDATE_ERROR',
+  APPLICATION_CONFIGURATION_ERROR: 'APPLICATION_CONFIGURATION_ERROR',
 } as const
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode]

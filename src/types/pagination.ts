@@ -31,6 +31,13 @@ export interface PageResult<T> {
   pageSize: number
 }
 
+/**
+ * Application-layer alias of `PageResult` — the canonical pagination contract.
+ * `Paginated<T>` exists so application services and use cases can name the
+ * shape without importing the repository vocabulary.
+ */
+export type Paginated<T> = PageResult<T>
+
 /** Derived metadata for API responses. */
 export interface PaginationMeta {
   page: number

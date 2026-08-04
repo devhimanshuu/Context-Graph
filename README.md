@@ -11,12 +11,14 @@ the architecture is **completely domain-agnostic** and will later support
 hospitals, finance, legal firms, software companies, universities,
 manufacturing, and other organizations.
 
-> **Status: Phase 2 — Foundation + data layer.** The production-ready project
-> foundation ships with a complete, domain-agnostic database layer (schema,
-> migrations, seed, repository contracts). No business logic (graph traversal,
-> rule engine, permissions, auth) has been implemented yet — see
-> [Roadmap](#roadmap). The healthcare assessment is expressed purely as seed
-> data.
+> **Status: Phase 3 — Foundation + data layer + application layer.** The
+> production-ready project foundation ships with a complete, domain-agnostic
+> database layer (schema, migrations, seed, repository contracts) **and** the
+> application-layer blueprint: service contracts, use-case contracts, pipeline
+> contracts, DTOs, events, caching, configuration, logging and dependency
+> injection. No business logic (graph traversal, rule engine, permissions,
+> auth) has been implemented yet — see [Roadmap](#roadmap). The healthcare
+> assessment is expressed purely as seed data.
 
 ---
 
@@ -59,9 +61,9 @@ system, validated configuration, and a professional enterprise dashboard.
 | Database        | Supabase PostgreSQL                 |
 | Database client | Prisma 6 (models, migrations, seed) |
 | Validation      | Zod                                 |
-| Authentication  | Supabase Auth (Phase 2)             |
-| Charts          | Recharts (Phase 2+)                 |
-| Graph viz       | React Flow (Phase 2+)               |
+| Authentication  | Supabase Auth (Phase 4+)            |
+| Charts          | Recharts (Phase 4+)                 |
+| Graph viz       | React Flow (Phase 4+)               |
 | Deployment      | Vercel                              |
 
 ## Architecture
@@ -106,6 +108,21 @@ See [docs/architecture.md](docs/architecture.md) for the full design rationale.
 │   │   ├── layout.tsx           #   Root layout (fonts, providers)
 │   │   ├── error.tsx            #   Global error boundary
 │   │   └── not-found.tsx        #   404 page
+│   ├── application/             # Application layer (Phase 3, contracts only)
+│   │   ├── services/interfaces/ #   Replaceable service contracts
+│   │   ├── use-cases/           #   Use-case contracts (I/O DTOs, deps)
+│   │   ├── contracts/           #   Pipeline contracts (context, result)
+│   │   ├── pipelines/           #   Stage interface + stage registry
+│   │   ├── dto/                 #   Context and IO DTOs
+│   │   ├── events/              #   Event contracts (pipeline lifecycle)
+│   │   ├── mappers/             #   Mapper contracts
+│   │   ├── caching/             #   Cache contracts + key builders
+│   │   ├── config/              #   Typed application configuration
+│   │   ├── logging/             #   ILogger / IAuditLogger / IMetricsLogger
+│   │   ├── di/                  #   Container, registry, resolver, providers
+│   │   ├── shared/              #   Re-exported generic types
+│   │   ├── testing/             #   Builders, fixtures, mocks, helpers
+│   │   └── errors/              #   Application error family
 │   ├── components/              # Reusable UI
 │   │   ├── ui/                  #   shadcn/ui primitives
 │   │   ├── layout/              #   Dashboard shell (sidebar, header, ...)
@@ -217,8 +234,9 @@ See `.env.example` for the documented template.
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 1     | **Foundation** — architecture, tooling, error handling, logging, dashboard shell _(done)_                                                                                |
 | 2     | **Data layer** — Prisma schema (generic core: org/workspace/node/edge/profile/rule), migrations, seed, repository contracts, domain models, DTOs, database docs _(done)_ |
-| 3     | Authentication (Supabase Auth), graph traversal & BFS, permission compiler, rule engine, React Flow visualization, first business APIs                                   |
-| 4     | Context assembly for AI, node versioning, analytics (Recharts), multi-tenant hardening, observability (Sentry/Datadog)                                                   |
+| 3     | **Application layer** — service contracts, use-case contracts, pipeline contracts, DTOs, events, caching, config, logging, DI, testing scaffolding _(done)_              |
+| 4     | Graph traversal & BFS, rule engine, permission compiler, first business APIs                                                                                             |
+| 5     | Authentication, React Flow visualization, context assembly for AI, node versioning, analytics, multi-tenant hardening, observability                                     |
 
 ## Documentation
 
@@ -226,5 +244,8 @@ See `.env.example` for the documented template.
   principles and rationale.
 - [docs/database.md](docs/database.md) — database design: ER diagram, entity
   purposes, index strategy, scaling, migrations, future extensibility.
+- [docs/application-architecture.md](docs/application-architecture.md) —
+  application layer: pipeline design, service contracts, use cases, DI flow,
+  future extension strategy.
 - Layer convention guides live as `README.md` files inside each `src/*`
   folder (`services`, `repositories`, `features`, `app/api`, ...).
