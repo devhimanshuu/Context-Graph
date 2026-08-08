@@ -1,0 +1,470 @@
+// ContextGraph — Prisma schema (Phase 2: data foundation) Design goals - Domain-agnostic,
+// multi-tenant by construction: every business row is ...
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Enums
+
+/// Lifecycle of an organization (tenant).
+enum OrganizationStatus {
+  ONBOARDING
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+/// Broad industry classification. Extend per tenant; never shapes queries.
+enum Industry {
+  HEALTHCARE
+  FINANCE
+  LEGAL
+  TECHNOLOGY
+  EDUCATION
+  MANUFACTURING
+  RETAIL
+  GOVERNMENT
+  OTHER
+}
+
+/// Lifecycle of a workspace (a domain container inside an organization).
+enum WorkspaceStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+/// Semantic kind of a knowledge node. Domain-agnostic by design.
+enum NodeType {
+  FACT
+  CONSTRAINT
+  DECISION
+  ANTI_PATTERN
+}
+
+/// Lifecycle of a knowledge node. SUPERSEDED links to its replacement via a
+/// GraphEdge of type SUPERSEDES. LEGAL_HOLD freezes a node from edits.
+enum NodeStatus {
+  DRAFT
+  ACTIVE
+  SUPERSEDED
+  EXPIRED
+  LEGAL_HOLD
+  REVIEW_REQUIRED
+  ARCHIVED
+}
+
+/// Semantic meaning of a directed edge — the vocabulary of graph traversal.
+enum RelationshipType {
+  SUPPORTS
+  REQUIRES
+  DERIVED_FROM
+  SUPERSEDES
+  CONTRADICTS
+}
+
+/// Regulatory/compliance classifications attachable to knowledge nodes.
+enum ComplianceTag {
+  HIPAA
+  GDPR
+  PCI_DSS
+  SOC2
+  SOX
+  FINRA
+  ISO_27001
+  PHI
+  PII
+  CONFIDENTIAL
+  RESTRICTED
+  INTERNAL
+  PUBLIC
+}
+
+/// Functional role of a user inside an organization.
+enum Role {
+  ADMIN
+  HOD
+  EDITOR
+  VIEWER
+  QUALITY
+  AUDITOR
+}
+
+/// Account lifecycle of a user.
+enum UserStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
+/// Granular write capability. The permission compiler (Phase 3) refines this
+/// into per-entity policies derived from PermissionProfile.
+enum PermissionLevel {
+  NONE
+  READ
+  WRITE
+  ADMIN
+}
+
+/// Highest compliance class a user may see. Must dominate a node's required
+/// clearance for the node to be returned by permission-aware queries.
+enum ComplianceClearance {
+  NONE
+  STANDARD
+  SENSITIVE
+  RESTRICTED
+  CRITICAL
+}
+
+/// Lifecycle of a deterministic context rule.
+enum ContextRuleStatus {
+  DRAFT
+  ACTIVE
+  DISABLED
+  ARCHIVED
+}
+
+// Multi-tenant core
+
+/// A tenant. All business data hangs off an Organization.
+model Organization {
+  id            String             @id @default(uuid()) @db.Uuid
+  name          String
+  slug          String             @unique
+  industry      Industry
+  status        OrganizationStatus @default(ONBOARDING)
+  /// Flexible tenant-level configuration (branding, feature flags, limits).
+  configuration Json               @default("{}")
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  deletedAt     DateTime?
+
+  workspaces         Workspace[]
+  departments        Department[]
+  users              User[]
+  knowledgeNodes     KnowledgeNode[]
+  graphEdges         GraphEdge[]
+  permissionProfiles PermissionProfile[]
+  contextRules       ContextRule[]
+  auditLogs          AuditLog[]
+
+  @@index([status])
+  @@index([industry])
+}
+
+/// A named domain container inside an organization (e.g. "Inpatient
+/// Assessment", "KYC Onboarding"). Knowledge is always workspace-scoped.
+model Workspace {
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @db.Uuid
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  slug           String
+  description    String?
+  status         WorkspaceStatus @default(ACTIVE)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+
+  knowledgeNodes     KnowledgeNode[]
+  graphEdges         GraphEdge[]
+  contextRules       ContextRule[]
+  permissionProfiles PermissionProfile[]
+  auditLogs          AuditLog[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, status])
+}
+
+// Organization chart
+
+// An organizational unit. Self-referencing for arbitrary hierarchy depth. Departments own
+// knowledge domains and group users; they are NOT the security boundary — Workspace is.
+model Department {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// Parent department (null = root). Unlimited hierarchy depth.
+  parentId       String?      @db.Uuid
+  parent         Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children       Department[] @relation("DepartmentHierarchy")
+  name           String
+  /// Stable, org-unique short identifier used in permission rules.
+  code           String
+  /// 0 = root; grows downward. Enables level-based filtering.
+  hierarchyLevel Int      @default(0)
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+
+  users          User[]
+  knowledgeNodes KnowledgeNode[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, hierarchyLevel])
+  @@index([parentId])
+}
+
+// Identity & access
+
+/// A user within a tenant. Authentication arrives in a later phase; the
+/// profile fields below drive permission-aware filtering.
+model User {
+  id                   String              @id @default(uuid()) @db.Uuid
+  organizationId       String              @db.Uuid
+  organization         Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  departmentId         String?             @db.Uuid
+  department           Department?         @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  email                String
+  name                 String
+  role                 Role
+  permissionLevel      PermissionLevel     @default(READ)
+  complianceClearance  ComplianceClearance @default(STANDARD)
+  status               UserStatus          @default(INVITED)
+  /// Opaque provider handle filled in when Supabase Auth lands.
+  authProviderUserId   String?
+  metadata             Json                @default("{}")
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  deletedAt            DateTime?
+
+  createdNodes       KnowledgeNode[]      @relation("KnowledgeNodeCreator")
+  updatedNodes       KnowledgeNode[]      @relation("KnowledgeNodeUpdater")
+  createdEdges       GraphEdge[]          @relation("GraphEdgeCreator")
+  createdRules       ContextRule[]        @relation("ContextRuleCreator")
+  profileAssignments PermissionProfileAssignment[]
+  grantedAssignments PermissionProfileAssignment[] @relation("ProfileAssignmentGrantedBy")
+  auditLogs          AuditLog[]
+
+  @@unique([organizationId, email])
+  @@unique([organizationId, authProviderUserId])
+  @@index([organizationId, role])
+  @@index([organizationId, permissionLevel])
+  @@index([organizationId, complianceClearance])
+  @@index([departmentId])
+}
+
+// Knowledge graph
+
+/// A node in the knowledge graph: a fact, constraint, decision or anti-pattern.
+/// The unit of retrieval, permission checking and rule evaluation.
+model KnowledgeNode {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspaceId    String       @db.Uuid
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// Owning department, when knowledge is attributed to an org unit.
+  departmentId   String?      @db.Uuid
+  department     Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+// NOTE (denormalization invariant): `organizationId` and `workspaceId` are both stored even though
+// workspaceId already implies an organization. This keeps the isolation prefix leftmost on every in...
+
+  title    String
+  content  String
+  type     NodeType
+  status   NodeStatus @default(DRAFT)
+  /// Retrieval importance 0-100; used to rank context assembly output.
+  importance Int @default(0)
+  /// 0-100 confidence that this node is derivable from others; derived nodes
+  /// are re-evaluated when their sources change.
+  derivabilityScore Int @default(0)
+  /// Current content version (node versioning module, Phase 4).
+  version  Int        @default(1)
+  /// Validity window for temporal filtering (guidelines, regulations).
+  validFrom DateTime?
+  validTo   DateTime?
+  metadata  Json       @default("{}")
+
+  createdById String?  @db.Uuid
+  createdBy   User?    @relation("KnowledgeNodeCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById String?  @db.Uuid
+  updatedBy   User?    @relation("KnowledgeNodeUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  complianceTags KnowledgeNodeComplianceTag[]
+  sourceEdges    GraphEdge[]                   @relation("GraphEdgeSource")
+  targetEdges    GraphEdge[]                   @relation("GraphEdgeTarget")
+
+  // -- Organization isolation ---------------------------------------------
+  @@index([organizationId, status])
+  // -- Workspace scope + status (the dominant retrieval pattern) ----------
+  @@index([workspaceId, status])
+  @@index([workspaceId, type])
+  @@index([workspaceId, importance])
+  // -- Temporal + status filtering (validity windows) ---------------------
+  @@index([workspaceId, validFrom, validTo])
+  @@index([workspaceId, status, validFrom, validTo])
+  // -- Auxiliary lookups --------------------------------------------------
+  @@index([departmentId])
+  @@index([createdById])
+  @@index([workspaceId, updatedAt])
+}
+
+// Normalized junction between a node and its compliance tags. A dedicated table (instead of a
+// Postgres array) gives us a real index on `tag` for compliance-filtered retrieval.
+model KnowledgeNodeComplianceTag {
+  knowledgeNodeId String         @db.Uuid
+  knowledgeNode   KnowledgeNode  @relation(fields: [knowledgeNodeId], references: [id], onDelete: Cascade)
+  tag             ComplianceTag
+
+  @@id([knowledgeNodeId, tag])
+  @@index([tag])
+}
+
+/// A directed, typed relationship between two knowledge nodes — the edge
+/// vocabulary of BFS traversal and of the rule/context engines.
+model GraphEdge {
+  id               String           @id @default(uuid()) @db.Uuid
+  organizationId   String           @db.Uuid
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspaceId      String           @db.Uuid
+  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  sourceId         String           @db.Uuid
+  source           KnowledgeNode    @relation("GraphEdgeSource", fields: [sourceId], references: [id], onDelete: Cascade)
+  targetId         String           @db.Uuid
+  target           KnowledgeNode    @relation("GraphEdgeTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  relationshipType RelationshipType
+  /// Traversal weight (0-1); BFS/DFS engines can prefer stronger edges.
+  weight           Float            @default(1)
+  validFrom        DateTime?
+  validTo          DateTime?
+  metadata         Json             @default("{}")
+  createdById      String?          @db.Uuid
+  createdBy        User?            @relation("GraphEdgeCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
+
+  // See the denormalization invariant note on KnowledgeNode: `organizationId`
+  // here must equal `workspace.organizationId`; repositories enforce it.
+
+  // -- BFS traversal: outgoing and incoming adjacency ----------------------
+  @@index([workspaceId, sourceId])
+  @@index([workspaceId, targetId])
+  // -- Typed traversal + temporal validity --------------------------------
+  @@index([workspaceId, relationshipType])
+  @@index([workspaceId, relationshipType, validFrom, validTo])
+  // -- Organization isolation ---------------------------------------------
+  @@index([organizationId])
+  // -- Uniqueness: no duplicate edges -------------------------------------
+  @@unique([workspaceId, sourceId, targetId, relationshipType])
+}
+
+// Governance
+
+// A named, versioned set of permission rules. `rules` is a JSON document (e.g. role → entity →
+// action grants) consumed by the permission compiler in Phase 3. Assignments to users are tracked e...
+model PermissionProfile {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// Null = organization-wide profile; non-null = workspace-scoped.
+  workspaceId    String?      @db.Uuid
+  workspace      Workspace?   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  rules          Json         @default("[]")
+  isDefault      Boolean      @default(false)
+  version        Int          @default(1)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  assignments PermissionProfileAssignment[]
+
+// Profile names are unique per organization (including org-wide profiles, where workspaceId is
+// null) so permission resolution never has to pick between same-named profiles.
+  @@unique([organizationId, name])
+  @@index([organizationId, isDefault])
+  @@index([workspaceId])
+}
+
+/// Explicit, audited grant of a permission profile to a user.
+model PermissionProfileAssignment {
+  id          String            @id @default(uuid()) @db.Uuid
+  profileId   String            @db.Uuid
+  profile     PermissionProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  userId      String            @db.Uuid
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grantedById String?           @db.Uuid
+  grantedBy   User?             @relation("ProfileAssignmentGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+  grantedAt   DateTime          @default(now())
+  revokedAt   DateTime?
+
+  @@unique([profileId, userId])
+  @@index([userId])
+}
+
+/// A deterministic rule for the rule engine: condition (JSON AST) evaluated
+/// against a context; when it fires, `action` describes what to emit/do.
+model ContextRule {
+  id             String            @id @default(uuid()) @db.Uuid
+  organizationId String            @db.Uuid
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// Null = organization-wide rule.
+  workspaceId    String?           @db.Uuid
+  workspace      Workspace?        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  /// Rule condition as a JSON expression tree (see docs/database.md § Rules).
+  condition      Json
+  /// What the rule produces/does when it fires.
+  action         Json              @default("{}")
+  priority       Int               @default(0)
+  status         ContextRuleStatus @default(DRAFT)
+  isEnabled      Boolean           @default(false)
+  version        Int               @default(1)
+  validFrom      DateTime?
+  validTo        DateTime?
+  createdById    String?           @db.Uuid
+  createdBy      User?             @relation("ContextRuleCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  deletedAt      DateTime?
+
+  @@index([organizationId, status])
+  @@index([workspaceId, isEnabled, priority])
+  @@index([workspaceId, validFrom, validTo])
+}
+
+// Audit & observability
+
+/// Append-only event log. One row per state-changing operation; doubles as
+/// the foundation for the event-sourcing and real-time modules.
+model AuditLog {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspaceId    String?      @db.Uuid
+  workspace      Workspace?   @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  actorId        String?      @db.Uuid
+  actor          User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action         String
+  entityType     String
+  /// Polymorphic target id (any entity kind); kept as text on purpose.
+  entityId       String
+  /// Previous state for events that changed a record (event sourcing).
+  before         Json?
+  /// New state after the change.
+  after          Json?
+  metadata       Json         @default("{}")
+  ipAddress      String?
+  occurredAt     DateTime     @default(now())
+
+  @@index([organizationId, entityType, entityId, occurredAt])
+  @@index([organizationId, actorId, occurredAt])
+  @@index([workspaceId, occurredAt])
+  @@index([organizationId, occurredAt])
+}

@@ -1,7 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
+# Dependencies
 /node_modules
+**/node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -10,37 +11,86 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
+# Build & Compilation Outputs
+dist/
+**/dist/
+build/
+**/build/
+.next/
+**/.next/
+out/
+**/out/
+*.tsbuildinfo
+**/*.tsbuildinfo
+next-env.d.ts
+**/next-env.d.ts
+.next-verify
+**/.next-verify
+.next-preview
+**/.next-preview
+.turbo/
+.cache/
 
-# next.js
-/.next/
-/out/
+# Database & Prisma (Dev DBs and generated clients)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+prisma/generated/
+**/prisma/generated/
 
-# production
-/build
+# Testing & Coverage (Vitest / Jest)
+coverage/
+**/coverage/
+.vitest-cache/
+**/.vitest-cache/
+.nyc_output/
+playwright-report/
+test-results/
 
-# misc
-.DS_Store
-*.pem
-
-# debug
+# Logs & Debugging
+logs/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+lerna-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# Environment & Secret files
+.env
+.env.*
 !.env.example
+!.env.*.example
+!**/.env.example
+!**/.env.*.example
+*.pem
+*.key
+*.crt
 
-# vercel
+# IDEs & Code Editors
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+
+# OS System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Tooling & Local State
 .vercel
-
-# freebuff desktop app local state
 .freebuff/
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
 .agents

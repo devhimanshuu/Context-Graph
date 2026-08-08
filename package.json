@@ -2,75 +2,36 @@
   "name": "contextgraph",
   "version": "0.1.0",
   "private": true,
-  "description": "ContextGraph - Enterprise Context Intelligence Platform",
+  "description": "ContextGraph — Enterprise Context Intelligence Platform (monorepo: Next.js web + NestJS API + shared packages)",
   "engines": {
     "node": ">=20.0.0"
   },
+  "workspaces": [
+    "packages/*",
+    "apps/api"
+  ],
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
-    "start": "next start",
-    "lint": "eslint",
-    "lint:fix": "eslint --fix",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit",
-    "db:generate": "prisma generate",
-    "db:validate": "prisma validate",
-    "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy",
-    "db:reset": "prisma migrate reset --force",
-    "db:seed": "prisma db seed",
-    "db:studio": "prisma studio",
+    "dev:web": "npm --prefix apps/web run dev",
+    "dev:api": "npm run start:dev -w @contextgraph/api",
+    "build": "npm run build:packages && npm run build:api && npm run build:web",
+    "build:packages": "npm run build -w @contextgraph/types -w @contextgraph/shared -w @contextgraph/config -w @contextgraph/ui",
+    "build:api": "npm run build -w @contextgraph/api",
+    "build:web": "npm --prefix apps/web run build",
+    "start:api": "npm run start:prod -w @contextgraph/api",
+    "typecheck": "npm run build:packages && npm run typecheck -w @contextgraph/api && npm --prefix apps/web run typecheck",
+    "lint": "npm run lint -w @contextgraph/api && npm --prefix apps/web run lint",
+    "format": "npm run format -w @contextgraph/api && npm --prefix apps/web run format",
+    "test": "npm run test -w @contextgraph/api && npm --prefix apps/web run test",
+    "db:generate": "npm run db:generate -w @contextgraph/api",
+    "db:validate": "npm run db:validate -w @contextgraph/api",
+    "db:migrate": "npm run db:migrate -w @contextgraph/api",
+    "db:deploy": "npm run db:deploy -w @contextgraph/api",
+    "db:reset": "npm run db:reset -w @contextgraph/api",
+    "db:seed": "npm run db:seed -w @contextgraph/api",
+    "db:studio": "npm run db:studio -w @contextgraph/api",
     "prepare": "husky"
   },
-  "dependencies": {
-    "@clerk/nextjs": "^7.6.5",
-    "@prisma/client": "^6.19.3",
-    "@supabase/ssr": "^0.12.4",
-    "@supabase/supabase-js": "^2.112.0",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "cmdk": "^1.1.1",
-    "lucide-react": "^1.28.0",
-    "next": "15.5.22",
-    "next-themes": "^0.4.6",
-    "radix-ui": "^1.6.7",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "server-only": "^0.0.1",
-    "shadcn": "^4.16.1",
-    "sonner": "^2.0.7",
-    "tailwind-merge": "^3.6.0",
-    "tw-animate-css": "^1.4.0",
-    "zod": "^4.4.3"
-  },
   "devDependencies": {
-    "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "dotenv": "^17.4.2",
-    "eslint": "^9",
-    "eslint-config-next": "15.5.22",
-    "eslint-config-prettier": "^10.1.8",
-    "husky": "^9.1.7",
-    "lint-staged": "^17.3.0",
-    "prettier": "^3.9.6",
-    "prettier-plugin-tailwindcss": "^0.8.1",
-    "prisma": "^6.19.3",
-    "tailwindcss": "^4",
-    "tsx": "^4.23.5",
-    "typescript": "^5"
-  },
-  "lint-staged": {
-    "*.{ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{json,md,css,yml,yaml}": [
-      "prettier --write"
-    ]
+    "husky": "^9.1.7"
   }
 }

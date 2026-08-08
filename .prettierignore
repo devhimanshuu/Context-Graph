@@ -1,9 +1,13 @@
 node_modules
-.next
+**/node_modules
+**/.next
+**/.next-verify
+**/.next-preview
+**/dist
 out
 build
 coverage
-public
-package-lock.json
+**/public
+**/package-lock.json
 next-env.d.ts
 *.tsbuildinfo
