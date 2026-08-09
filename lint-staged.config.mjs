@@ -1,7 +1,4 @@
-import { relative } from 'node:path'
-
 const toSlash = (p) => p.replace(/\\/g, '/')
-const rel = (dir, files) => files.map((file) => toSlash(relative(dir, file))).join(' ')
 
 /**
  * Monorepo-aware lint-staged tasks.
@@ -16,23 +13,27 @@ const rel = (dir, files) => files.map((file) => toSlash(relative(dir, file))).jo
  *    config file's directory), so `apps/web` files — whose `.prettierrc.json`
  *    lists the plugin — must be formatted from `apps/web`.
  */
-const runIn = (dir) => (files) => [
-  `npx --prefix ${dir} eslint --fix ${rel(dir, files)}`,
-  `npx --prefix ${dir} prettier --write ${rel(dir, files)}`,
-]
+const runIn = (dir) => (files) => {
+  const formattedFiles = files.map(toSlash).join(' ')
+  return [
+    `npx --prefix ${dir} eslint --config ${dir}/eslint.config.mjs --fix ${formattedFiles}`,
+    `npx --prefix ${dir} prettier --write ${formattedFiles}`,
+  ]
+}
 
 /** Prettier from the workspace for apps/web files (tailwind plugin), root otherwise. */
 const prettierPerWorkspace = (files) => {
   const grouped = new Map()
   for (const file of files) {
-    const dir = file.startsWith('apps/web/') ? 'apps/web' : '.'
+    const dir = file.startsWith('apps/web/') || file.includes('/apps/web/') ? 'apps/web' : '.'
     grouped.set(dir, [...(grouped.get(dir) ?? []), file])
   }
-  return [...grouped].map(([dir, list]) =>
-    dir === '.'
-      ? `prettier --write ${list.join(' ')}`
-      : `npx --prefix ${dir} prettier --write ${rel(dir, list)}`,
-  )
+  return [...grouped].map(([dir, list]) => {
+    const formattedFiles = list.map(toSlash).join(' ')
+    return dir === '.'
+      ? `prettier --write ${formattedFiles}`
+      : `npx --prefix ${dir} prettier --write ${formattedFiles}`
+  })
 }
 
 export default {

@@ -15,7 +15,7 @@ const ROADMAP = [
   { label: 'Project foundation & architecture', done: true },
   { label: 'Database layer & domain model (schema, migrations, seed)', done: true },
   { label: 'Application layer — contracts, DI, pipeline blueprint', done: true },
-  { label: 'Graph engine — BFS traversal, validation, reachability (NestJS)', done: false },
+  { label: 'Graph engine — BFS traversal, validation, reachability (NestJS)', done: true },
   { label: 'Authentication, rule engine & permission compiler', done: false },
   { label: 'Permission-aware context assembly', done: false },
   { label: 'AI integrations & analytics', done: false },

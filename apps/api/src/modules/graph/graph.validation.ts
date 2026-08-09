@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { RelationshipType } from '@contextgraph/types'
+import { TraversalStrategy } from './domain/traversal'
 
 export const createEdgeSchema = z.object({
   sourceId: z.string().uuid(),
@@ -13,6 +14,7 @@ export const reachabilityQuerySchema = z.object({
   entryNodeId: z.string().uuid(),
   maxDepth: z.number().int().min(1).max(64).default(32),
   relationshipTypes: z.array(z.nativeEnum(RelationshipType)).optional(),
+  strategy: z.nativeEnum(TraversalStrategy).default(TraversalStrategy.BFS),
 })
 
 export type CreateEdgeInput = z.infer<typeof createEdgeSchema>

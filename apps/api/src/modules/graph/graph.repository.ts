@@ -1,15 +1,17 @@
 import { Injectable } from '@nestjs/common'
-import type { EntityId, RelationshipType } from '@contextgraph/types'
+import type { Prisma } from '@prisma/client'
+import type { EntityId, NodeStatus, NodeType, RelationshipType } from '@contextgraph/types'
 import { PrismaService } from '../../database/prisma.service'
 import { type GraphEdgeEntity } from './graph-edge.entity'
 import { prismaGraphEdgeToEntity } from './graph.mapper'
+import type { CreateEdgeInput } from './graph.validation'
 
 /** Minimal node projection returned to traversal callers. */
 export interface NodeProjection {
   id: EntityId
   title: string
-  type: string
-  status: string
+  type: NodeType
+  status: NodeStatus
 }
 
 /* Graph persistence contract. Exposes adjacency-shaped queries (by source / */
@@ -35,6 +37,14 @@ export abstract class IGraphRepository {
     workspaceId: EntityId,
   ): Promise<GraphEdgeEntity[]>
   abstract findNodesByIds(organizationId: EntityId, ids: EntityId[]): Promise<NodeProjection[]>
+  /** Persists a new edge. Callers validate the DAG invariant before invoking. */
+  abstract createEdge(
+    organizationId: EntityId,
+    workspaceId: EntityId,
+    input: CreateEdgeInput,
+    id: EntityId,
+    createdById: EntityId | null,
+  ): Promise<GraphEdgeEntity>
 }
 
 @Injectable()
@@ -89,5 +99,28 @@ export class GraphPrismaRepository implements IGraphRepository {
       where: { organizationId, id: { in: ids }, deletedAt: null },
       select: { id: true, title: true, type: true, status: true },
     })
+  }
+
+  async createEdge(
+    organizationId: EntityId,
+    workspaceId: EntityId,
+    input: CreateEdgeInput,
+    id: EntityId,
+    createdById: EntityId | null,
+  ): Promise<GraphEdgeEntity> {
+    const row = await this.prisma.graphEdge.create({
+      data: {
+        id,
+        organizationId,
+        workspaceId,
+        sourceId: input.sourceId,
+        targetId: input.targetId,
+        relationshipType: input.relationshipType,
+        weight: input.weight,
+        metadata: input.metadata as Prisma.InputJsonValue,
+        createdById,
+      },
+    })
+    return prismaGraphEdgeToEntity(row)
   }
 }

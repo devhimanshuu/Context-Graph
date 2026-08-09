@@ -1,12 +1,23 @@
 import { Body, Controller, Get, Inject, Param, Post } from '@nestjs/common'
 import type { AuthenticatedUser } from '@contextgraph/types'
 import { CurrentUser } from '../../common/decorators/current-user.decorator'
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger'
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger'
 import { UuidParamPipe } from '../../common/pipes/uuid-param.pipe'
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
 import { IGraphService } from './graph.service'
 import { GraphEdgeResponseDto, ReachabilityResponseDto } from './graph.dto'
-import { reachabilityQuerySchema, type ReachabilityQueryInput } from './graph.validation'
+import {
+  createEdgeSchema,
+  reachabilityQuerySchema,
+  type CreateEdgeInput,
+  type ReachabilityQueryInput,
+} from './graph.validation'
 
 @ApiBearerAuth()
 @ApiTags('Graph')
@@ -24,8 +35,21 @@ export class GraphController {
     return this.graphService.getWorkspaceEdges(user.organizationId, workspaceId)
   }
 
+  @Post('workspaces/:workspaceId/edges')
+  @ApiOperation({
+    summary: 'Create a graph edge — cyclic inserts are rejected before persist',
+  })
+  @ApiCreatedResponse({ type: GraphEdgeResponseDto })
+  createEdge(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('workspaceId', new UuidParamPipe()) workspaceId: string,
+    @Body(new ZodValidationPipe(createEdgeSchema)) body: CreateEdgeInput,
+  ) {
+    return this.graphService.createEdge(user.organizationId, workspaceId, body, user.id)
+  }
+
   @Post('workspaces/:workspaceId/reachability')
-  @ApiOperation({ summary: 'Compute reachable nodes from an entry node (BFS lands in Phase 6)' })
+  @ApiOperation({ summary: 'Compute nodes reachable from an entry node (BFS, upward)' })
   @ApiOkResponse({ type: ReachabilityResponseDto })
   reachability(
     @CurrentUser() user: AuthenticatedUser,
