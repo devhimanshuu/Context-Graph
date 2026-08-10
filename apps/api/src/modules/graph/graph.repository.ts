@@ -1,17 +1,32 @@
 import { Injectable } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
-import type { EntityId, NodeStatus, NodeType, RelationshipType } from '@contextgraph/types'
+import {
+  type ComplianceTag,
+  type EntityId,
+  type Metadata,
+  type NodeStatus,
+  type NodeType,
+  type RelationshipType,
+} from '@contextgraph/types'
 import { PrismaService } from '../../database/prisma.service'
 import { type GraphEdgeEntity } from './graph-edge.entity'
 import { prismaGraphEdgeToEntity } from './graph.mapper'
 import type { CreateEdgeInput } from './graph.validation'
 
-/** Minimal node projection returned to traversal callers. */
+/**
+ * Node data returned to traversal callers. Carries the attributes the
+ * authorization engine needs (department, owner, compliance tags, visibility
+ * metadata) so permission filtering never needs a second query per node.
+ */
 export interface NodeProjection {
   id: EntityId
   title: string
   type: NodeType
   status: NodeStatus
+  departmentId: EntityId | null
+  createdById: EntityId | null
+  complianceTags: ComplianceTag[]
+  metadata: Metadata
 }
 
 /* Graph persistence contract. Exposes adjacency-shaped queries (by source / */
@@ -95,10 +110,29 @@ export class GraphPrismaRepository implements IGraphRepository {
   }
 
   async findNodesByIds(organizationId: EntityId, ids: EntityId[]): Promise<NodeProjection[]> {
-    return this.prisma.knowledgeNode.findMany({
+    const rows = await this.prisma.knowledgeNode.findMany({
       where: { organizationId, id: { in: ids }, deletedAt: null },
-      select: { id: true, title: true, type: true, status: true },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        status: true,
+        departmentId: true,
+        createdById: true,
+        metadata: true,
+        complianceTags: { select: { tag: true } },
+      },
     })
+    return rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      type: row.type,
+      status: row.status,
+      departmentId: row.departmentId,
+      createdById: row.createdById,
+      complianceTags: row.complianceTags.map((entry) => entry.tag),
+      metadata: row.metadata as Metadata,
+    }))
   }
 
   async createEdge(

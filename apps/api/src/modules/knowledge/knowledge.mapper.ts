@@ -1,7 +1,32 @@
 import type { ComplianceTag, KnowledgeNode } from '@prisma/client'
+import { type EntityId, type Metadata, type NodeStatus, type NodeType } from '@contextgraph/types'
 import { KnowledgeNodeEntity } from './knowledge.entity'
 import { type KnowledgeNodeResponseDto } from './knowledge.dto'
 import { type CreateKnowledgeNodeInput } from './knowledge.validation'
+import {
+  ResourceVisibility,
+  type ResourceAuthorizationContext,
+} from '../authorization/domain/resource-context'
+
+/** Metadata key a node may carry to override the default INTERNAL visibility. */
+const VISIBILITY_METADATA_KEY = 'visibility'
+
+/**
+ * The minimal node shape the authorization mapper needs. Satisfied by the
+ * domain entity (reads) and by prospective node objects (create/update), so
+ * write paths can authorize a node before it is persisted.
+ */
+export interface KnowledgeNodeAuthSource {
+  id: EntityId
+  organizationId: EntityId
+  workspaceId: EntityId
+  departmentId: EntityId | null
+  createdById: EntityId | null
+  complianceTags: readonly ComplianceTag[]
+  metadata: Metadata
+  status: NodeStatus
+  type: NodeType
+}
 
 export function prismaKnowledgeNodeToEntity(
   row: KnowledgeNode & { complianceTags?: { tag: ComplianceTag }[] },
@@ -51,6 +76,41 @@ export function entityToKnowledgeNodeResponse(
     createdAt: entity.createdAt,
     updatedAt: entity.updatedAt,
   }
+}
+
+/**
+ * Maps a node (existing entity or prospective create/update state) into the
+ * authorization engine's resource shape so the same policies (organization,
+ * department, compliance, visibility) gate node reads AND writes. Visibility
+ * comes from node metadata (validated) and defaults to INTERNAL;
+ * `requiredPermissionLevel` is intentionally null — nodes carry no
+ * stricter-than-default level today.
+ */
+export function knowledgeNodeToResourceContext(
+  source: KnowledgeNodeAuthSource,
+): ResourceAuthorizationContext {
+  return {
+    id: source.id,
+    resourceType: 'knowledge-node',
+    organizationId: source.organizationId,
+    workspaceId: source.workspaceId,
+    departmentId: source.departmentId,
+    ownerId: source.createdById,
+    requiredPermissionLevel: null,
+    complianceTags: [...source.complianceTags],
+    visibility: resolveVisibility(source.metadata),
+    status: source.status,
+    attributes: { type: source.type },
+  }
+}
+
+/** Reads `metadata.visibility`, dropping unknown values (fail-safe default INTERNAL). */
+function resolveVisibility(metadata: Metadata): ResourceVisibility {
+  const value = metadata[VISIBILITY_METADATA_KEY]
+  if (value === ResourceVisibility.PUBLIC || value === ResourceVisibility.PRIVATE) {
+    return value
+  }
+  return ResourceVisibility.INTERNAL
 }
 
 export function createKnowledgeNodeInputToPrisma(

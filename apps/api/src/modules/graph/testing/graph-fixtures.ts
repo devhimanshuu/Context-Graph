@@ -14,8 +14,22 @@ export interface GraphFixture {
   readonly edges: GraphEdgeEntity[]
 }
 
-export function makeNodeProjection(id: string, title = `Node ${id}`): NodeProjection {
-  return { id, title, type: NodeType.FACT, status: NodeStatus.ACTIVE }
+export function makeNodeProjection(
+  id: string,
+  title = `Node ${id}`,
+  overrides: Partial<NodeProjection> = {},
+): NodeProjection {
+  return {
+    id,
+    title,
+    type: NodeType.FACT,
+    status: NodeStatus.ACTIVE,
+    departmentId: null,
+    createdById: null,
+    complianceTags: [],
+    metadata: {},
+    ...overrides,
+  }
 }
 
 export function makeEdgeEntity(

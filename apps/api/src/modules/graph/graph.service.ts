@@ -1,7 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common'
-import type { EntityId } from '@contextgraph/types'
+import { PermissionAction, type AuthenticatedUser, type EntityId } from '@contextgraph/types'
 import { uuid } from '../../common/utils/uuid'
 import { ConflictException } from '../../common/exceptions/conflict.exception'
+import { NotFoundException } from '../../common/exceptions/not-found.exception'
 import { AppException } from '../../common/exceptions/app.exception'
 import { IGraphRepository, type NodeProjection } from './graph.repository'
 import { type GraphEdgeResponseDto, type ReachabilityResponseDto } from './graph.dto'
@@ -17,8 +18,14 @@ import {
   SelfReferenceError,
 } from './errors/graph-errors'
 import { GraphValidator } from './engine/graph-validator'
-import { graphEdgeEntityToDomain, nodeProjectionToDomain } from './graph.mapper'
+import {
+  graphEdgeEntityToDomain,
+  nodeProjectionToDomain,
+  nodeProjectionToResourceContext,
+} from './graph.mapper'
 import { IGraphCache } from './cache/graph-cache.interface'
+import { IAuthorizationService } from '../authorization/services/authorization.service'
+import { IAuthorizationEvaluator } from '../authorization/evaluator/permission-evaluator'
 
 export abstract class IGraphService {
   /** Every operation is org-scoped — tenant isolation is enforced at the service boundary. */
@@ -32,8 +39,9 @@ export abstract class IGraphService {
     input: CreateEdgeInput,
     createdById: EntityId | null,
   ): Promise<GraphEdgeResponseDto>
+  /** Reachability filtered to nodes the caller may read (server-side). */
   abstract reachableNodes(
-    organizationId: EntityId,
+    user: AuthenticatedUser,
     workspaceId: EntityId,
     query: ReachabilityQueryInput,
   ): Promise<ReachabilityResponseDto>
@@ -56,6 +64,8 @@ export class GraphService implements IGraphService {
     private readonly reachability: ReachabilityService,
     private readonly validator: GraphValidator,
     @Inject(IGraphCache) private readonly cache: IGraphCache,
+    @Inject(IAuthorizationService) private readonly authorization: IAuthorizationService,
+    @Inject(IAuthorizationEvaluator) private readonly evaluator: IAuthorizationEvaluator,
   ) {}
 
   async getWorkspaceEdges(
@@ -125,14 +135,14 @@ export class GraphService implements IGraphService {
   }
 
   async reachableNodes(
-    organizationId: EntityId,
+    user: AuthenticatedUser,
     workspaceId: EntityId,
     query: ReachabilityQueryInput,
   ): Promise<ReachabilityResponseDto> {
-    const result = await this.reachability.compute(organizationId, workspaceId, query, {
+    const result = await this.reachability.compute(user.organizationId, workspaceId, query, {
       strategy: query.strategy,
     })
-    return this.toReachabilityDto(organizationId, result)
+    return this.toAuthorizedReachabilityDto(user, result)
   }
 
   async getNodeProjections(organizationId: EntityId, ids: EntityId[]): Promise<NodeProjection[]> {
@@ -180,21 +190,46 @@ export class GraphService implements IGraphService {
     return new InvalidGraphError(errors)
   }
 
-  private async toReachabilityDto(
-    organizationId: EntityId,
+  /**
+   * Composes the traversal result with the authorization engine: the caller's
+   * context is compiled ONCE (cached) and reused for every visited node, so
+   * permission filtering costs zero additional database queries. An entry node
+   * the caller may not read is treated as not found (no structure leak); the
+   * DTO then contains only nodes the caller may read.
+   */
+  private async toAuthorizedReachabilityDto(
+    user: AuthenticatedUser,
     result: GraphTraversalResult,
   ): Promise<ReachabilityResponseDto> {
     const nodeIds = result.nodes.map((node) => node.id)
-    const projections = await this.getNodeProjections(organizationId, nodeIds)
+    const projections = await this.getNodeProjections(user.organizationId, nodeIds)
     const byId = new Map(projections.map((projection) => [projection.id, projection]))
+
+    const context = await this.authorization.getContext(user)
+    const isReadable = (id: GraphNodeId): boolean => {
+      const projection = byId.get(id)
+      if (projection === undefined) return false
+      return this.evaluator.evaluate(
+        context,
+        nodeProjectionToResourceContext(projection, user.organizationId),
+        PermissionAction.READ,
+      ).allowed
+    }
+
+    if (!isReadable(result.entryNodeId)) {
+      throw new NotFoundException('Entry node not found or not accessible')
+    }
+
+    const authorizedIds = nodeIds.filter(isReadable)
+    const authorizedSet = new Set(authorizedIds)
 
     return {
       entryNodeId: result.entryNodeId,
-      nodeIds,
-      distances: Object.fromEntries(result.distances),
-      costs: result.costs === undefined ? undefined : Object.fromEntries(result.costs),
-      order: Object.fromEntries(result.order),
-      nodes: nodeIds.map((id) => {
+      nodeIds: authorizedIds,
+      distances: pickMap(result.distances, authorizedSet),
+      costs: result.costs === undefined ? undefined : pickMap(result.costs, authorizedSet),
+      order: pickMap(result.order, authorizedSet),
+      nodes: authorizedIds.map((id) => {
         const projection = byId.get(id)
         return {
           id,
@@ -203,12 +238,15 @@ export class GraphService implements IGraphService {
           status: projection?.status ?? '',
         }
       }),
-      traversal: result.nodes.map((node) => ({
-        id: node.id,
-        distance: node.distance,
-        order: node.order,
-        parentIds: [...node.parentIds],
-      })),
+      traversal: result.nodes
+        .filter((node) => authorizedSet.has(node.id))
+        .map((node) => ({
+          id: node.id,
+          distance: node.distance,
+          order: node.order,
+          parentIds: [...node.parentIds],
+        })),
+      filteredNodeCount: nodeIds.length - authorizedIds.length,
       metadata: {
         visitedNodeCount: result.metadata.visitedNodeCount,
         traversalDepth: result.metadata.traversalDepth,
@@ -220,4 +258,16 @@ export class GraphService implements IGraphService {
       },
     }
   }
+}
+
+/** Picks the entries whose keys are in the given set (O(n) over the map). */
+function pickMap<K extends string, V>(
+  map: ReadonlyMap<K, V>,
+  keep: ReadonlySet<K>,
+): Record<string, V> {
+  const picked: Record<string, V> = {}
+  for (const [key, value] of map) {
+    if (keep.has(key)) picked[key] = value
+  }
+  return picked
 }

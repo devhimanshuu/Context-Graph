@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common'
+import { AuthorizationModule } from '../authorization/authorization.module'
 import { IGraphRepository, GraphPrismaRepository } from './graph.repository'
 import { IGraphService, GraphService } from './graph.service'
 import { GraphController } from './graph.controller'
@@ -23,6 +24,7 @@ import { ReachabilityService } from './services/reachability.service'
  * Swapping BFS for another strategy only replaces the engine provider.
  */
 @Module({
+  imports: [AuthorizationModule],
   controllers: [GraphController, GraphDebugController],
   providers: [
     // Persistence + cache + entry resolution: swappable implementations.

@@ -39,7 +39,7 @@ export class KnowledgeController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('workspaceId', new UuidParamPipe()) workspaceId: string,
   ) {
-    return this.service.findByWorkspace(user.organizationId, workspaceId)
+    return this.service.findByWorkspace(user, workspaceId)
   }
 
   @Post('workspaces/:workspaceId/nodes')
@@ -58,7 +58,7 @@ export class KnowledgeController {
   @ApiOperation({ summary: 'Get a knowledge node by id (org-scoped)' })
   @ApiOkResponse({ type: KnowledgeNodeResponseDto })
   findById(@CurrentUser() user: AuthenticatedUser, @Param('id', new UuidParamPipe()) id: string) {
-    return this.service.findById(user.organizationId, id)
+    return this.service.findById(user, id)
   }
 
   @Patch('nodes/:id')
@@ -70,7 +70,7 @@ export class KnowledgeController {
     @Param('id', new UuidParamPipe()) id: string,
     @Body(new ZodValidationPipe(updateKnowledgeNodeSchema)) body: UpdateKnowledgeNodeInput,
   ) {
-    return this.service.update(user.organizationId, id, body)
+    return this.service.update(user, id, body)
   }
 
   @Delete('nodes/:id')

@@ -56,6 +56,6 @@ export class GraphController {
     @Param('workspaceId', new UuidParamPipe()) workspaceId: string,
     @Body(new ZodValidationPipe(reachabilityQuerySchema)) body: ReachabilityQueryInput,
   ) {
-    return this.graphService.reachableNodes(user.organizationId, workspaceId, body)
+    return this.graphService.reachableNodes(user, workspaceId, body)
   }
 }

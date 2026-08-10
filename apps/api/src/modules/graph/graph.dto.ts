@@ -86,6 +86,11 @@ export class ReachabilityResponseDto {
   @ApiProperty({ description: 'Discovery order per node id' })
   order!: Record<string, number>
 
+  @ApiPropertyOptional({
+    description: 'Visited nodes removed from the result by permission filtering',
+  })
+  filteredNodeCount?: number
+
   @ApiPropertyOptional({ type: NodeProjectionDto, isArray: true })
   nodes?: NodeProjectionDto[]
 
