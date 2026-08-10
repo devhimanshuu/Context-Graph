@@ -11,6 +11,7 @@ import { DepartmentsModule } from './modules/departments/departments.module'
 import { KnowledgeModule } from './modules/knowledge/knowledge.module'
 import { GraphModule } from './modules/graph/graph.module'
 import { PermissionsModule } from './modules/permissions/permissions.module'
+import { AuthorizationModule } from './modules/authorization/authorization.module'
 import { RulesModule } from './modules/rules/rules.module'
 import { PipelineModule } from './modules/pipeline/pipeline.module'
 import { CandidateModule } from './modules/candidate/candidate.module'
@@ -19,8 +20,7 @@ import { AuditModule } from './modules/audit/audit.module'
 import { ConfigurationModule } from './modules/configuration/configuration.module'
 import { HealthModule } from './modules/health/health.module'
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard'
-import { RolesGuard } from './common/guards/roles.guard'
-import { PermissionsGuard } from './common/guards/permissions.guard'
+import { AuthorizationGuard } from './common/guards/authorization.guard'
 import { OrganizationGuard } from './common/guards/organization.guard'
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter'
 import { ResponseInterceptor } from './common/interceptors/response.interceptor'
@@ -40,6 +40,7 @@ import { ExecutionTimeInterceptor } from './common/interceptors/execution-time.i
     KnowledgeModule,
     GraphModule,
     PermissionsModule,
+    AuthorizationModule,
     RulesModule,
     PipelineModule,
     CandidateModule,
@@ -51,8 +52,7 @@ import { ExecutionTimeInterceptor } from './common/interceptors/execution-time.i
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
-    { provide: APP_GUARD, useClass: RolesGuard },
-    { provide: APP_GUARD, useClass: PermissionsGuard },
+    { provide: APP_GUARD, useClass: AuthorizationGuard },
     { provide: APP_GUARD, useClass: OrganizationGuard },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     { provide: APP_INTERCEPTOR, useClass: ExecutionTimeInterceptor },
