@@ -510,6 +510,64 @@
   animation: cg-rise 0.75s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Sidebar rail stagger — collapsed icons (and expanded labels) fade/slide in
+   with a per-item delay set inline. `both` keeps items invisible until their
+   delay starts so the cascade reads top-to-bottom. */
+@keyframes cg-rail-item {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.cg-rail-item {
+  animation: cg-rail-item 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Reachability replay — nodes light up in traversal discovery order (delay
+   set inline per element), then edges fade in once both endpoints are
+   revealed. Transform animates the card itself, never the positioned wrapper,
+   so React Flow's translate is untouched. `--edge-target-opacity` preserves
+   the dimmed state of edges touching withheld nodes. */
+@keyframes cg-node-reveal {
+  0% {
+    opacity: 0.12;
+    transform: scale(0.95);
+    filter: brightness(0.6);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1.03);
+    filter: brightness(1.15);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+.cg-node-reveal {
+  animation: cg-node-reveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes cg-edge-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: var(--edge-target-opacity, 0.85);
+  }
+}
+
+.cg-edge-reveal {
+  animation: cg-edge-reveal 0.45s ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cg-aurora-a,
   .cg-aurora-b,
@@ -519,6 +577,9 @@
   .cg-stream,
   .cg-particle,
   .cg-rise,
+  .cg-rail-item,
+  .cg-node-reveal,
+  .cg-edge-reveal,
   .cg-glow-pulse,
   .cg-status-in,
   .cg-blink,

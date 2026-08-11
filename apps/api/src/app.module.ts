@@ -12,6 +12,7 @@ import { KnowledgeModule } from './modules/knowledge/knowledge.module'
 import { GraphModule } from './modules/graph/graph.module'
 import { PermissionsModule } from './modules/permissions/permissions.module'
 import { AuthorizationModule } from './modules/authorization/authorization.module'
+import { RuleEngineModule } from './modules/rule-engine/rule-engine.module'
 import { RulesModule } from './modules/rules/rules.module'
 import { PipelineModule } from './modules/pipeline/pipeline.module'
 import { CandidateModule } from './modules/candidate/candidate.module'
@@ -19,6 +20,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module'
 import { AuditModule } from './modules/audit/audit.module'
 import { ConfigurationModule } from './modules/configuration/configuration.module'
 import { HealthModule } from './modules/health/health.module'
+import { DemoModule } from './modules/demo/demo.module'
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard'
 import { AuthorizationGuard } from './common/guards/authorization.guard'
 import { OrganizationGuard } from './common/guards/organization.guard'
@@ -41,6 +43,7 @@ import { ExecutionTimeInterceptor } from './common/interceptors/execution-time.i
     GraphModule,
     PermissionsModule,
     AuthorizationModule,
+    RuleEngineModule,
     RulesModule,
     PipelineModule,
     CandidateModule,
@@ -48,6 +51,7 @@ import { ExecutionTimeInterceptor } from './common/interceptors/execution-time.i
     AuditModule,
     ConfigurationModule,
     HealthModule,
+    DemoModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

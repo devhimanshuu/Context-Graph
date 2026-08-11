@@ -2,6 +2,7 @@
 
 import { Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DemoUserSwitcher } from '@/components/dashboard/demo-user-switcher'
 import type { SessionUser } from '@/lib/auth/types'
 import { Breadcrumbs } from './breadcrumbs'
 import { CommandMenu } from './command-menu'
@@ -29,6 +30,7 @@ export function AppHeader({ user }: { user: SessionUser }) {
 
       <div className="ml-auto flex items-center gap-1">
         <CommandMenu />
+        <DemoUserSwitcher />
         <ThemeToggle />
         <UserMenu user={user} />
       </div>

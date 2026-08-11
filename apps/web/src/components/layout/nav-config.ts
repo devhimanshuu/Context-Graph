@@ -27,16 +27,16 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         title: 'Knowledge Graph',
         href: ROUTES.knowledgeGraph,
         icon: Waypoints,
-        badge: 'Phase 3',
+        badge: 'Live',
       },
-      { title: 'Contexts', href: ROUTES.contexts, icon: Boxes, badge: 'Phase 3' },
+      { title: 'Contexts', href: ROUTES.contexts, icon: Boxes, badge: 'Phase 7' },
     ],
   },
   {
     label: 'Governance',
     items: [
-      { title: 'Rules', href: ROUTES.rules, icon: ScrollText, badge: 'Phase 3' },
-      { title: 'Permissions', href: ROUTES.permissions, icon: ShieldCheck, badge: 'Phase 3' },
+      { title: 'Rules', href: ROUTES.rules, icon: ScrollText, badge: 'Live' },
+      { title: 'Permissions', href: ROUTES.permissions, icon: ShieldCheck, badge: 'Live' },
     ],
   },
   {
