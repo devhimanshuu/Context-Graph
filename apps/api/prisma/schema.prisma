@@ -153,6 +153,7 @@ model Organization {
   permissionProfiles PermissionProfile[]
   contextRules       ContextRule[]
   auditLogs          AuditLog[]
+  pipelineRuns       PipelineRun[]
 
   @@index([status])
   @@index([industry])
@@ -177,6 +178,7 @@ model Workspace {
   contextRules       ContextRule[]
   permissionProfiles PermissionProfile[]
   auditLogs          AuditLog[]
+  pipelineRuns       PipelineRun[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -242,6 +244,7 @@ model User {
   profileAssignments PermissionProfileAssignment[]
   grantedAssignments PermissionProfileAssignment[] @relation("ProfileAssignmentGrantedBy")
   auditLogs          AuditLog[]
+  pipelineRuns       PipelineRun[]
 
   @@unique([organizationId, email])
   @@unique([organizationId, authProviderUserId])
@@ -467,4 +470,57 @@ model AuditLog {
   @@index([organizationId, actorId, occurredAt])
   @@index([workspaceId, occurredAt])
   @@index([organizationId, occurredAt])
+}
+
+/// Immutable record of one context-pipeline execution (Phase 7). Append-only:
+/// created by the orchestrator on every run (success or failure), never
+/// updated or deleted. The JSON payloads (validated request, stage results,
+/// metrics, package candidates/exclusions) let any historical execution be
+/// replayed deterministically and audited. No `deletedAt` — events are never
+/// removed.
+model PipelineRun {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspaceId    String       @db.Uuid
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// Principal who triggered the run.
+  actorId        String?      @db.Uuid
+  actor          User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  /// Fresh per run; the stable handle for historical lookups and replay.
+  requestId      String       @unique
+  /// Fresh per run; null when the run failed before a package was produced.
+  packageId      String?      @unique
+  version        String
+  mode           String
+  strategy       String
+  entryNodeId    String
+  maxDepth       Int
+  tokenBudget    Int
+  maxCandidates  Int
+  /// Fixed evaluation instant (UTC) — replay uses it for identical content.
+  evaluatedAt    DateTime
+  /// completed | failed
+  status         String
+  /// Stage that failed (failed runs only).
+  failedStageId  String?
+  /// The validated request as received (immutable).
+  request        Json
+  /// Ordered stage results — the machine-readable execution trace.
+  trace          Json
+  /// Full run metrics (null for failed runs).
+  metrics        Json?
+  /// Tokens used by the final package (0 for failed runs).
+  tokensUsed     Int    @default(0)
+  /// Ranked, budgeted package candidates (null for failed runs).
+  candidates     Json?
+  /// Inclusion/exclusion explanations (null for failed runs).
+  exclusions     Json?
+  /// Failure details: { code, message } (null for completed runs).
+  error          Json?
+  createdAt      DateTime       @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, workspaceId, createdAt])
+  @@index([requestId])
 }

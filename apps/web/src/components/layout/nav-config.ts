@@ -1,5 +1,18 @@
 import type { LucideIcon } from 'lucide-react'
-import { Boxes, LayoutGrid, ScrollText, Settings, ShieldCheck, Waypoints } from 'lucide-react'
+import {
+  BarChart3,
+  Boxes,
+  Building2,
+  FileClock,
+  GitBranch,
+  LayoutGrid,
+  ScrollText,
+  Settings,
+  ShieldCheck,
+  SlidersHorizontal,
+  Users,
+  Waypoints,
+} from 'lucide-react'
 import { ROUTES } from '@/constants'
 
 /* Shared navigation configuration. Single source of truth for sidebar and command-palette navigation. Adding a */
@@ -29,6 +42,7 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         icon: Waypoints,
         badge: 'Live',
       },
+      { title: 'Pipeline', href: ROUTES.pipeline, icon: GitBranch, badge: 'Live' },
       { title: 'Contexts', href: ROUTES.contexts, icon: Boxes, badge: 'Phase 7' },
     ],
   },
@@ -37,6 +51,21 @@ export const NAV_SECTIONS: readonly NavSection[] = [
     items: [
       { title: 'Rules', href: ROUTES.rules, icon: ScrollText, badge: 'Live' },
       { title: 'Permissions', href: ROUTES.permissions, icon: ShieldCheck, badge: 'Live' },
+    ],
+  },
+  {
+    label: 'Administration',
+    items: [
+      { title: 'Audit', href: ROUTES.audit, icon: FileClock, badge: 'Live' },
+      { title: 'Users', href: ROUTES.users, icon: Users, badge: 'Live' },
+      { title: 'Departments', href: ROUTES.departments, icon: Building2, badge: 'Live' },
+      { title: 'Analytics', href: ROUTES.analytics, icon: BarChart3, badge: 'Live' },
+      {
+        title: 'Configuration',
+        href: ROUTES.configuration,
+        icon: SlidersHorizontal,
+        badge: 'Live',
+      },
     ],
   },
   {

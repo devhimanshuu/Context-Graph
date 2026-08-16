@@ -22,6 +22,7 @@
     "bench:graph": "tsx src/modules/graph/benchmark/graph.benchmark.ts",
     "bench:authz": "tsx src/modules/authorization/benchmark/authorization.benchmark.ts",
     "bench:rules": "tsx src/modules/rule-engine/benchmark/rule-engine.benchmark.ts",
+    "bench:pipeline": "tsx src/modules/pipeline/benchmark/context-pipeline.benchmark.ts",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
     "db:migrate": "prisma migrate dev",

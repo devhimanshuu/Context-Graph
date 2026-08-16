@@ -568,6 +568,93 @@
   animation: cg-edge-reveal 0.45s ease-out both;
 }
 
+/* Pipeline trace playback — the 10-stage execution trace replays as a
+   vertical timeline: each stage card rises in (delay set inline), its count
+   pops in, its funnel bar grows, and a packet flows down the rail into the
+   next stage. Container class `cg-pipeline-paused` freezes every descendant
+   animation at its current frame. */
+@keyframes cg-pipeline-stage {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-1px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.cg-pipeline-stage {
+  animation: cg-pipeline-stage 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes cg-pipeline-count {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.cg-pipeline-count {
+  animation: cg-pipeline-count 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes cg-pipeline-bar {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+.cg-pipeline-bar {
+  transform-origin: left;
+  animation: cg-pipeline-bar 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes cg-pipeline-flow {
+  0% {
+    top: 0;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    top: calc(100% - 4px);
+    opacity: 0;
+  }
+}
+
+.cg-pipeline-flow {
+  animation: cg-pipeline-flow 0.34s ease-in-out both;
+}
+
+.cg-pipeline-paused .cg-pipeline-stage,
+.cg-pipeline-paused .cg-pipeline-count,
+.cg-pipeline-paused .cg-pipeline-bar,
+.cg-pipeline-paused .cg-pipeline-flow {
+  animation-play-state: paused;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cg-aurora-a,
   .cg-aurora-b,
@@ -592,7 +679,11 @@
   .animate-ping,
   .cg-node-halo,
   .cg-graph-scan,
-  .cg-node-ring {
+  .cg-node-ring,
+  .cg-pipeline-stage,
+  .cg-pipeline-count,
+  .cg-pipeline-bar,
+  .cg-pipeline-flow {
     animation: none;
   }
 

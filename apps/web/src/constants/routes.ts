@@ -11,9 +11,15 @@ export const ROUTES = {
   /** Authenticated dashboard (overview). */
   dashboard: '/dashboard',
   knowledgeGraph: '/dashboard/knowledge-graph',
+  pipeline: '/dashboard/pipeline',
   rules: '/dashboard/rules',
   permissions: '/dashboard/permissions',
   contexts: '/dashboard/contexts',
+  audit: '/dashboard/audit',
+  users: '/dashboard/users',
+  departments: '/dashboard/departments',
+  analytics: '/dashboard/analytics',
+  configuration: '/dashboard/configuration',
   settings: '/dashboard/settings',
 } as const
 
@@ -27,8 +33,14 @@ export const ROUTE_TITLES: Readonly<Record<string, string>> = {
   [ROUTES.onboarding]: 'Welcome',
   [ROUTES.dashboard]: 'Overview',
   [ROUTES.knowledgeGraph]: 'Knowledge Graph',
+  [ROUTES.pipeline]: 'Pipeline',
   [ROUTES.rules]: 'Rules',
   [ROUTES.permissions]: 'Permissions',
   [ROUTES.contexts]: 'Contexts',
+  [ROUTES.audit]: 'Audit',
+  [ROUTES.users]: 'Users',
+  [ROUTES.departments]: 'Departments',
+  [ROUTES.analytics]: 'Analytics',
+  [ROUTES.configuration]: 'Configuration',
   [ROUTES.settings]: 'Settings',
 } as const

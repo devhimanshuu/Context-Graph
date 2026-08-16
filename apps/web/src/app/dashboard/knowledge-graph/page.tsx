@@ -17,6 +17,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { useApi } from '@/components/dashboard/api-provider'
+import { GraphDebugPanel } from '@/components/dashboard/graph-debug-panel'
 import { KnowledgeGraphView } from '@/components/dashboard/knowledge-graph-view'
 import { useApiData } from '@/hooks/use-api-data'
 import type { GraphEdge, ReachabilityResult } from '@/lib/api/types'
@@ -298,6 +299,8 @@ export default function KnowledgeGraphPage() {
           </CardContent>
         </Card>
       </div>
+
+      {workspaceId !== null && <GraphDebugPanel workspaceId={workspaceId} nodes={nodeList} />}
 
       <Card>
         <CardHeader>

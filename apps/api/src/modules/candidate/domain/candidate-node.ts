@@ -1,4 +1,11 @@
-import type { ComplianceTag, EntityId, NodeStatus, NodeType, Score } from '@contextgraph/types'
+import type {
+  ComplianceTag,
+  EntityId,
+  NodeStatus,
+  NodeType,
+  Score,
+  Timestamp,
+} from '@contextgraph/types'
 import type { CompressionHint } from './compression-hint'
 import type { InclusionReason } from '../../rule-engine/domain/inclusion-reason'
 
@@ -25,6 +32,8 @@ export interface CandidateNode {
   /** 0-100 genericness score; higher = more likely derivable. */
   readonly derivabilityScore: Score | null
   readonly complianceTags: readonly ComplianceTag[]
+  /** When the node stops being valid; null = unbounded (drives freshness). */
+  readonly validTo: Timestamp | null
   /** Why the node entered the candidate set (stable enum). */
   readonly inclusionReason: InclusionReason
   /** How the assembler should treat this node's content. */

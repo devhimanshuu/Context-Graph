@@ -231,8 +231,11 @@ export interface RuleRunResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Context assembly (Phase 7 — pipeline module)
+// Context pipeline (Phase 7 — /pipeline/context/resolve)
 // ---------------------------------------------------------------------------
+
+export type PipelineMode = 'STANDARD' | 'DEBUG' | 'AUDIT' | 'BENCHMARK'
+export type CompressionHint = 'FULL' | 'SUMMARY' | 'COMPRESSED' | 'REFERENCE_ONLY'
 
 export interface ContextRuleVerdict {
   ruleId: string
@@ -241,61 +244,98 @@ export interface ContextRuleVerdict {
   reason: string
 }
 
-export interface ContextNodeExplanation {
+export interface PipelineTraceEntry {
+  stageId: string
+  stageName: string
+  status: 'completed' | 'failed'
+  outputCount: number | null
+  durationMs: number
+}
+
+export interface PipelineStageResult extends PipelineTraceEntry {
+  startedAt: string
+  completedAt: string
+  inputCount: number | null
+  metadata: Record<string, unknown>
+}
+
+export interface PipelineRunMetrics {
+  totalDurationMs: number
+  stagesExecuted: number
+  reachableNodes: number
+  authorizedNodes: number
+  injectedNodes: number
+  ruleCandidates: number
+  builtCandidates: number
+  rankedCandidates: number
+  includedCandidates: number
+  excludedByRules: number
+  excludedByBudget: number
+  excludedByRank: number
+  ruleEngineDurationMs: number
+  stageDurationsMs: Record<string, number>
+}
+
+export interface PipelineExecutionSummary {
+  requestId: string
+  packageId: string
+  version: string
+  mode: PipelineMode
+  evaluatedAt: string
+  funnel: {
+    reachable: number
+    authorized: number
+    ruleCandidates: number
+    included: number
+  }
+  metrics: PipelineRunMetrics
+  trace: PipelineTraceEntry[]
+  stageResults?: PipelineStageResult[]
+}
+
+export interface PipelineCandidate {
+  candidateId: string
+  title: string
+  content: string
+  type: NodeType
+  status: NodeStatus
+  importance: number
+  distance: number
+  derivabilityScore: number | null
+  complianceTags: string[]
+  inclusionReason: string
+  compressionHint: CompressionHint
+  score: number
+  rank: number
+  tokens: number
+}
+
+export interface PipelineExclusion {
   nodeId: string
   included: boolean
   finalReasonCode: string | null
   failingRuleId: string | null
-  ruleResults: ContextRuleVerdict[]
-}
-
-export interface ContextNodeSummary {
-  id: string
-  title: string
-  type: string
-  status: string
-  importance: number
-  distance: number
-  derivabilityScore: number | null
-  tokens: number
-  included: boolean
   excludedByBudget: boolean
-}
-
-export interface ContextCandidate extends ContextNodeSummary {
-  content: string
-  complianceTags: string[]
-}
-
-export interface ContextFunnel {
-  reachable: number
-  candidates: number
-  included: number
-}
-
-export interface ContextMetrics {
-  initialCount: number
-  injectedCount: number
-  finalCount: number
-  totalDurationMs: number
+  excludedByRank?: boolean
+  ruleResults?: ContextRuleVerdict[]
 }
 
 export interface ContextPackage {
   packageId: string
   requestId: string
-  entryNodeId: string
+  version: string
+  mode: PipelineMode
   workspaceId: string
+  entryNodeId: string
   strategy: 'bfs' | 'weighted'
   evaluatedAt: string
+  generatedAt: string
   tokenBudget: number
   tokensUsed: number
   truncated: boolean
-  funnel: ContextFunnel
-  nodes: ContextNodeSummary[]
-  candidates: ContextCandidate[]
-  explanations: ContextNodeExplanation[]
-  executedStages: string[]
-  metrics: ContextMetrics
+  candidates: PipelineCandidate[]
+  exclusions: PipelineExclusion[]
+  summary: PipelineExecutionSummary
 }
 
 // ---------------------------------------------------------------------------
@@ -316,6 +356,156 @@ export interface ContextRule {
   version: number
   createdAt: string
   updatedAt: string
+}
+
+// ---------------------------------------------------------------------------
+// Audit log
+// ---------------------------------------------------------------------------
+
+export interface AuditLogEntry {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  actorId: string | null
+  action: string
+  entityType: string
+  entityId: string
+  metadata?: Record<string, unknown>
+  ipAddress: string | null
+  occurredAt: string
+}
+
+export interface AuditSummary {
+  totalAuditEvents: number
+  eventsByAction: Record<string, number>
+}
+
+// ---------------------------------------------------------------------------
+// Users (admin)
+// ---------------------------------------------------------------------------
+
+export type UserStatus = 'INVITED' | 'ACTIVE' | 'DISABLED'
+
+export interface UserRecord extends UserResponse {
+  status: UserStatus
+}
+
+export interface CreateUserInput {
+  email: string
+  name: string
+  role: Role
+  permissionLevel: PermissionLevel
+  complianceClearance: ComplianceClearance
+  departmentId?: string | null
+}
+
+// ---------------------------------------------------------------------------
+// Departments (admin)
+// ---------------------------------------------------------------------------
+
+export interface Department {
+  id: string
+  organizationId: string
+  parentId: string | null
+  name: string
+  code: string
+  hierarchyLevel: number
+  metadata?: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateDepartmentInput {
+  name: string
+  code: string
+  parentId?: string | null
+  hierarchyLevel?: number
+}
+
+// ---------------------------------------------------------------------------
+// Analytics (admin)
+// ---------------------------------------------------------------------------
+
+export interface AnalyticsSummary {
+  totalAuditEvents: number
+  eventsByAction: Record<string, number>
+}
+
+// ---------------------------------------------------------------------------
+// Configuration (admin, read-only)
+// ---------------------------------------------------------------------------
+
+export interface EngineConfiguration {
+  pipeline: Record<string, unknown>
+  traversal: Record<string, unknown>
+  ruleEngine: Record<string, unknown>
+  permission: Record<string, unknown>
+  cache: Record<string, unknown>
+  metrics: Record<string, unknown>
+}
+
+// ---------------------------------------------------------------------------
+// Graph debug (admin) — raw validated BFS metadata
+// ---------------------------------------------------------------------------
+
+export interface DebugTraversalNode {
+  id: string
+  distance: number
+  order: number
+  parentIds: string[]
+}
+
+export interface DebugReachabilityResult {
+  entryNodeId: string
+  validatedGraph: boolean
+  nodeIds: string[]
+  distances: Record<string, number>
+  order: Record<string, number>
+  nodes: DebugTraversalNode[]
+  metadata: TraversalMetadata
+}
+
+// ---------------------------------------------------------------------------
+// Permission profiles (admin)
+// ---------------------------------------------------------------------------
+
+export interface PermissionProfile {
+  id: string
+  organizationId: string
+  name: string
+  description: string | null
+  role: Role | null
+  permissionLevel: PermissionLevel
+  complianceClearance: ComplianceClearance
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PipelineRunRecord {
+  id: string
+  organizationId: string
+  workspaceId: string
+  actorId: string | null
+  requestId: string
+  packageId: string | null
+  version: string
+  mode: PipelineMode
+  strategy: string
+  entryNodeId: string
+  maxDepth: number
+  tokenBudget: number
+  maxCandidates: number
+  evaluatedAt: string
+  status: 'completed' | 'failed'
+  failedStageId: string | null
+  trace: Record<string, unknown>[]
+  metrics: Record<string, unknown> | null
+  candidates: Record<string, unknown>[] | null
+  exclusions: Record<string, unknown>[] | null
+  error: { code: string; message: string } | null
+  tokensUsed: number
+  createdAt: string
 }
 
 // ---------------------------------------------------------------------------

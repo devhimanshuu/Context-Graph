@@ -1,18 +1,30 @@
 'use client'
 
 import type {
+  AnalyticsSummary,
   ApiResponse,
+  AuditLogEntry,
+  AuditSummary,
   AuthorizationContext,
   AuthorizationDecision,
   ContextRule,
   ContextPackage,
+  CreateDepartmentInput,
+  CreateUserInput,
+  DebugReachabilityResult,
   DemoBootstrap,
+  Department,
+  EngineConfiguration,
   GraphEdge,
   KnowledgeNode,
   LoginResponse,
+  PermissionProfile,
+  PipelineMode,
+  PipelineRunRecord,
   ReachabilityResult,
   RuleEngineDefinition,
   RuleRunResponse,
+  UserRecord,
 } from './types'
 
 /* NestJS API base (`/api/v1`); override via NEXT_PUBLIC_API_URL. */
@@ -153,21 +165,134 @@ export class ApiClient {
     return this.post<RuleRunResponse>('/rule-engine/run', { workspaceId, ...body })
   }
 
-  // -- Context assembly (Phase 7) -------------------------------------------------
-  assembleContext(
+  // -- Context pipeline (Phase 7 — /pipeline/context/resolve) ----------------------
+  resolveContext(
     workspaceId: string,
     body: {
       entryNodeId: string
       maxDepth: number
       strategy?: 'bfs' | 'weighted'
       tokenBudget: number
+      maxCandidates?: number
+      mode?: PipelineMode
     },
   ): Promise<ContextPackage> {
-    return this.post<ContextPackage>('/pipeline/contexts', { workspaceId, ...body })
+    return this.post<ContextPackage>('/pipeline/context/resolve', { workspaceId, ...body })
   }
 
   // -- Rules storage -------------------------------------------------------------
   workspaceRules(workspaceId: string): Promise<ContextRule[]> {
     return this.get<ContextRule[]>(`/workspaces/${workspaceId}/rules`)
+  }
+
+  // -- Audit log (ADMIN/AUDITOR) ---------------------------------------------------
+  auditEntries(query: {
+    entityType?: string
+    entityId?: string
+    page?: number
+    limit?: number
+  }): Promise<AuditLogEntry[]> {
+    const params = new URLSearchParams()
+    if (query.entityType !== undefined) params.set('entityType', query.entityType)
+    if (query.entityId !== undefined) params.set('entityId', query.entityId)
+    if (query.page !== undefined) params.set('page', String(query.page))
+    if (query.limit !== undefined) params.set('limit', String(query.limit))
+    return this.get<AuditLogEntry[]>(`/audit?${params.toString()}`)
+  }
+
+  auditSummary(): Promise<AuditSummary> {
+    return this.get<AuditSummary>('/audit/summary')
+  }
+
+  // -- Users (ADMIN/HOD) -------------------------------------------------------------
+  users(): Promise<UserRecord[]> {
+    return this.get<UserRecord[]>('/users?page=1&limit=100')
+  }
+
+  createUser(input: CreateUserInput): Promise<UserRecord> {
+    return this.post<UserRecord>('/users', input)
+  }
+
+  updateUser(id: string, input: Partial<CreateUserInput>): Promise<UserRecord> {
+    return this.request<UserRecord>(`/users/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    })
+  }
+
+  deleteUser(id: string): Promise<void> {
+    return this.request<void>(`/users/${id}`, { method: 'DELETE' })
+  }
+
+  // -- Departments (ADMIN/HOD) ----------------------------------------------------------
+  departments(organizationId: string): Promise<Department[]> {
+    return this.get<Department[]>(`/organizations/${organizationId}/departments`)
+  }
+
+  createDepartment(organizationId: string, input: CreateDepartmentInput): Promise<Department> {
+    return this.post<Department>(`/organizations/${organizationId}/departments`, input)
+  }
+
+  updateDepartment(id: string, input: Partial<CreateDepartmentInput>): Promise<Department> {
+    return this.request<Department>(`/departments/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    })
+  }
+
+  deleteDepartment(id: string): Promise<void> {
+    return this.request<void>(`/departments/${id}`, { method: 'DELETE' })
+  }
+
+  // -- Analytics (ADMIN/AUDITOR) ----------------------------------------------------------
+  analyticsSummary(): Promise<AnalyticsSummary> {
+    return this.get<AnalyticsSummary>('/analytics/summary')
+  }
+
+  // -- Configuration (ADMIN, read-only) -----------------------------------------------------
+  engineConfiguration(): Promise<EngineConfiguration> {
+    return this.get<EngineConfiguration>('/configuration')
+  }
+
+  // -- Permission profiles --------------------------------------------------------------------
+  permissionProfiles(): Promise<PermissionProfile[]> {
+    return this.get<PermissionProfile[]>('/permissions/profiles')
+  }
+
+  createPermissionProfile(input: {
+    name: string
+    description?: string
+    role?: string | null
+    permissionLevel?: string
+    complianceClearance?: string
+  }): Promise<PermissionProfile> {
+    return this.post<PermissionProfile>('/permissions/profiles', input)
+  }
+
+  assignPermissionProfile(userId: string, profileId: string): Promise<{ assigned: boolean }> {
+    return this.post<{ assigned: boolean }>('/permissions/assign', { userId, profileId })
+  }
+
+  // -- Pipeline runs (event store) -------------------------------------------------------------------
+  pipelineRuns(workspaceId: string, limit = 10): Promise<PipelineRunRecord[]> {
+    return this.get<PipelineRunRecord[]>(
+      `/pipeline/runs?workspaceId=${encodeURIComponent(workspaceId)}&limit=${limit}`,
+    )
+  }
+
+  pipelineRun(requestId: string): Promise<PipelineRunRecord> {
+    return this.get<PipelineRunRecord>(`/pipeline/runs/${requestId}`)
+  }
+
+  replayPipelineRun(requestId: string): Promise<ContextPackage> {
+    return this.post<ContextPackage>(`/pipeline/runs/${requestId}/replay`)
+  }
+
+  // -- Graph debug (ADMIN only) -----------------------------------------------------------------------
+  debugReachability(
+    workspaceId: string,
+    body: { entryNodeId: string; maxDepth: number; strategy?: 'bfs' | 'weighted' },
+  ): Promise<DebugReachabilityResult> {
+    return this.post<DebugReachabilityResult>(`/debug/workspaces/${workspaceId}/reachability`, body)
   }
 }
