@@ -9,8 +9,7 @@ import { EmptyState } from '@/components/dashboard/empty-state'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useApi } from '@/components/dashboard/api-provider'
-import { useApiData } from '@/hooks/use-api-data'
-import type { AuditLogEntry, AuditSummary } from '@/lib/api/types'
+import { useAuditEntries, useAuditSummary } from '@/hooks/use-api-query'
 
 const ENTITY_TYPES = [
   'ORGANIZATION',
@@ -27,11 +26,8 @@ export default function AuditPage() {
   const { selectedUser } = useApi()
   const [entityType, setEntityType] = React.useState<string>('')
 
-  const summary = useApiData<AuditSummary>(async (api) => api.auditSummary(), [])
-  const entries = useApiData<AuditLogEntry[]>(
-    async (api) => api.auditEntries({ entityType: entityType || undefined, limit: 50 }),
-    [entityType],
-  )
+  const summary = useAuditSummary()
+  const entries = useAuditEntries({ entityType: entityType || undefined, limit: 50 })
 
   const isAdminViewer = selectedUser?.role === 'ADMIN' || selectedUser?.role === 'AUDITOR'
 
@@ -62,7 +58,7 @@ export default function AuditPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {summary.loading ? (
+            {summary.isPending ? (
               <Skeleton className="h-8 w-16" />
             ) : (
               <span className="text-3xl font-semibold tracking-tight">
@@ -77,7 +73,7 @@ export default function AuditPage() {
             <CardTitle className="text-sm font-medium">Top actions</CardTitle>
           </CardHeader>
           <CardContent>
-            {summary.loading ? (
+            {summary.isPending ? (
               <Skeleton className="h-16 w-full" />
             ) : topActions.length === 0 ? (
               <p className="text-muted-foreground text-xs">No events recorded yet.</p>
@@ -120,10 +116,10 @@ export default function AuditPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => entries.reload()}
-              disabled={entries.loading}
+              onClick={() => void entries.refetch()}
+              disabled={entries.isFetching}
             >
-              {entries.loading ? (
+              {entries.isFetching ? (
                 <LoaderCircle className="animate-spin" />
               ) : (
                 <RefreshCw className="size-3.5" />
@@ -132,13 +128,14 @@ export default function AuditPage() {
             </Button>
           </div>
 
-          {entries.error !== null && (
+          {entries.isError && (
             <p className="text-destructive text-xs">
-              {entries.error} — the audit log requires an ADMIN or AUDITOR role.
+              {entries.error?.message ?? 'Failed to load the audit log'} — the audit log requires an
+              ADMIN or AUDITOR role.
             </p>
           )}
 
-          {entries.loading ? (
+          {entries.isPending ? (
             <Skeleton className="h-48 w-full" />
           ) : (entries.data ?? []).length === 0 ? (
             <EmptyState

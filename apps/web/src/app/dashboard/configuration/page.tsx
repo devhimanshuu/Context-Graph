@@ -7,7 +7,7 @@ import { EmptyState } from '@/components/dashboard/empty-state'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useApi } from '@/components/dashboard/api-provider'
-import { useApiData } from '@/hooks/use-api-data'
+import { useEngineConfiguration } from '@/hooks/use-api-query'
 import type { EngineConfiguration } from '@/lib/api/types'
 
 const ENGINE_LABELS: Record<keyof EngineConfiguration, string> = {
@@ -21,7 +21,7 @@ const ENGINE_LABELS: Record<keyof EngineConfiguration, string> = {
 
 export default function ConfigurationPage() {
   const { selectedUser } = useApi()
-  const config = useApiData<EngineConfiguration>(async (api) => api.engineConfiguration(), [])
+  const config = useEngineConfiguration()
   const isAdmin = selectedUser?.role === 'ADMIN'
 
   return (
@@ -45,16 +45,16 @@ export default function ConfigurationPage() {
         </Card>
       )}
 
-      {config.error !== null && (
+      {config.isError && (
         <Card>
           <CardContent className="text-destructive flex items-center gap-2 py-4 text-sm">
             <CircleAlert className="size-4" />
-            {config.error}
+            {config.error?.message ?? 'Failed to load configuration'}
           </CardContent>
         </Card>
       )}
 
-      {config.loading ? (
+      {config.isPending ? (
         <Skeleton className="h-64 w-full" />
       ) : config.data === null ? (
         <EmptyState

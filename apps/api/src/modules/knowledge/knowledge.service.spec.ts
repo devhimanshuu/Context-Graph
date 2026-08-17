@@ -310,7 +310,28 @@ describe('KnowledgeService — permission-aware writes', () => {
     const { repository, service } = makeService([makeNode('n-1')])
     const result = await service.update(READER, 'n-1', { title: 'New title' })
     expect(result.id).toBe('n-1')
-    expect(repository.update).toHaveBeenCalledWith('n-1', { title: 'New title' })
+    // The raw input is mapped into the Prisma shape (relation `complianceTags`
+    // becomes deleteMany+create) and the actor is recorded as `updatedById`.
+    expect(repository.update).toHaveBeenCalledWith(
+      'n-1',
+      expect.objectContaining({ title: 'New title', updatedById: USER_ID }),
+    )
+  })
+
+  it('replaces compliance tags on update via the nested relation shape', async () => {
+    const { repository, service } = makeService([makeNode('n-1')])
+    await service.update(READER, 'n-1', {
+      complianceTags: [ComplianceTag.HIPAA, ComplianceTag.CONFIDENTIAL],
+    })
+    expect(repository.update).toHaveBeenCalledWith(
+      'n-1',
+      expect.objectContaining({
+        complianceTags: {
+          deleteMany: {},
+          create: [{ tag: ComplianceTag.HIPAA }, { tag: ComplianceTag.CONFIDENTIAL }],
+        },
+      }),
+    )
   })
 
   it('still 404s when updating a missing or foreign-org node', async () => {

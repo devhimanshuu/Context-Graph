@@ -39,6 +39,32 @@ export interface DemoBootstrap {
 }
 
 // ---------------------------------------------------------------------------
+// Organizations
+// ---------------------------------------------------------------------------
+
+export type Industry =
+  | 'HEALTHCARE'
+  | 'FINANCE'
+  | 'LEGAL'
+  | 'TECHNOLOGY'
+  | 'EDUCATION'
+  | 'MANUFACTURING'
+  | 'RETAIL'
+  | 'GOVERNMENT'
+  | 'OTHER'
+
+export interface OrganizationRecord {
+  id: string
+  name: string
+  slug: string
+  industry: Industry
+  status: 'ONBOARDING' | 'ACTIVE' | 'SUSPENDED' | 'ARCHIVED'
+  configuration?: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+}
+
+// ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
 
@@ -85,6 +111,23 @@ export interface KnowledgeNode {
   createdAt: string
   updatedAt: string
 }
+
+/** Payload accepted by `POST /workspaces/:workspaceId/nodes` (mirrors the API's Zod schema). */
+export interface CreateKnowledgeNodeInput {
+  title: string
+  content: string
+  type: NodeType
+  status?: NodeStatus
+  importance?: number
+  derivabilityScore?: number
+  complianceTags?: ComplianceTag[]
+  validFrom?: string | null
+  validTo?: string | null
+  departmentId?: string | null
+  metadata?: Record<string, unknown>
+}
+
+export type UpdateKnowledgeNodeInput = Partial<CreateKnowledgeNodeInput>
 
 // ---------------------------------------------------------------------------
 // Graph

@@ -35,7 +35,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           Secure access
         </p>
         <h1 className="mt-3 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-          Sign in to {APP.name}
+          Sign in to{' '}
+          <span className="bg-gradient-to-r from-indigo-500 via-sky-500 to-fuchsia-500 bg-clip-text text-transparent">
+            {APP.name}
+          </span>
         </h1>
         <p className="text-muted-foreground mt-2 text-sm">
           Welcome back — your governed context is ready.

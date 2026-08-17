@@ -9,7 +9,7 @@ import { EmptyState } from '@/components/dashboard/empty-state'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useApi } from '@/components/dashboard/api-provider'
-import { useApiData } from '@/hooks/use-api-data'
+import { useKnowledgeNodes } from '@/hooks/use-api-query'
 import type { AuthorizationDecision } from '@/lib/api/types'
 
 const CLEARANCE_TONE: Record<string, string> = {
@@ -24,10 +24,7 @@ export default function PermissionsPage() {
   const { client, bootstrap, context, selectedUser } = useApi()
   const workspaceId = bootstrap?.workspaceId ?? null
 
-  const nodes = useApiData(
-    async (api) => (workspaceId === null ? [] : api.knowledgeNodes(workspaceId)),
-    [workspaceId],
-  )
+  const nodes = useKnowledgeNodes(workspaceId)
 
   const [selectedNodeId, setSelectedNodeId] = React.useState<string>('')
   const [decision, setDecision] = React.useState<AuthorizationDecision | null>(null)
@@ -158,7 +155,7 @@ export default function PermissionsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {nodes.loading ? (
+            {nodes.isPending ? (
               <Skeleton className="h-8 w-full" />
             ) : nodeList.length === 0 ? (
               <p className="text-muted-foreground bg-muted/40 rounded-lg p-2.5 text-xs">

@@ -52,6 +52,26 @@ export const COMPLIANCE_TAG_VALUES = [
   'PUBLIC',
 ] as const
 
+export type ComplianceTagValue = (typeof COMPLIANCE_TAG_VALUES)[number]
+
+/** Short human-readable meaning for each compliance tag — shared by the editor
+ *  chips, the node detail sheet and the analytics tag breakdown. */
+export const COMPLIANCE_TAG_DESCRIPTIONS: Record<ComplianceTagValue, string> = {
+  HIPAA: 'Protected health data',
+  GDPR: 'EU data subject rights',
+  PCI_DSS: 'Cardholder data security',
+  SOC2: 'Trust services controls',
+  SOX: 'Financial records compliance',
+  FINRA: 'Securities record keeping',
+  ISO_27001: 'Information security management',
+  PHI: 'Protected health information',
+  PII: 'Personally identifiable information',
+  CONFIDENTIAL: 'Internal confidential material',
+  RESTRICTED: 'High-sensitivity restricted data',
+  INTERNAL: 'Internal use only',
+  PUBLIC: 'Public disclosure safe',
+}
+
 export const ROLE_VALUES = ['ADMIN', 'HOD', 'EDITOR', 'VIEWER', 'QUALITY', 'AUDITOR'] as const
 
 export const USER_STATUS_VALUES = ['INVITED', 'ACTIVE', 'DISABLED'] as const

@@ -17,9 +17,9 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { useApi } from '@/components/dashboard/api-provider'
+import { useGraphEdges, useKnowledgeNodes } from '@/hooks/use-api-query'
 import { GraphDebugPanel } from '@/components/dashboard/graph-debug-panel'
 import { KnowledgeGraphView } from '@/components/dashboard/knowledge-graph-view'
-import { useApiData } from '@/hooks/use-api-data'
 import type { GraphEdge, ReachabilityResult } from '@/lib/api/types'
 
 const NODE_TYPE_OPTIONS = ['FACT', 'CONSTRAINT', 'DECISION', 'ANTI_PATTERN'] as const
@@ -44,14 +44,8 @@ export default function KnowledgeGraphPage() {
   const { client, bootstrap, status } = useApi()
   const workspaceId = bootstrap?.workspaceId ?? null
 
-  const nodes = useApiData(
-    async (api) => (workspaceId === null ? [] : api.knowledgeNodes(workspaceId)),
-    [workspaceId],
-  )
-  const edges = useApiData(
-    async (api) => (workspaceId === null ? [] : api.graphEdges(workspaceId)),
-    [workspaceId],
-  )
+  const nodes = useKnowledgeNodes(workspaceId)
+  const edges = useGraphEdges(workspaceId)
 
   const [entryNodeId, setEntryNodeId] = React.useState<string>('')
   const [maxDepth, setMaxDepth] = React.useState<number>(3)
@@ -127,7 +121,7 @@ export default function KnowledgeGraphPage() {
           <CardContent className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-muted-foreground text-xs font-medium">Entry node</label>
-              {nodes.loading || nodeList.length === 0 ? (
+              {nodes.isPending || nodeList.length === 0 ? (
                 <Skeleton className="h-8 w-full" />
               ) : (
                 <Select value={entryNodeId} onValueChange={setEntryNodeId}>
@@ -234,7 +228,7 @@ export default function KnowledgeGraphPage() {
 
             {runError !== null && <p className="text-destructive text-xs">{runError}</p>}
 
-            {status === 'ready' && !nodes.loading && nodeList.length === 0 && (
+            {status === 'ready' && !nodes.isPending && nodeList.length === 0 && (
               <p className="text-muted-foreground bg-muted/40 rounded-lg p-2.5 text-xs">
                 No nodes are visible in this workspace for your authorization scope. Switch the demo
                 user in the top bar (e.g. to Dr. Amelia Chen) to see the graph.
@@ -310,7 +304,7 @@ export default function KnowledgeGraphPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {edges.loading ? (
+          {edges.isPending ? (
             <Skeleton className="h-24 w-full" />
           ) : (edges.data ?? []).length === 0 ? (
             <EmptyState

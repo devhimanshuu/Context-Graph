@@ -10,6 +10,7 @@ import type {
   ContextRule,
   ContextPackage,
   CreateDepartmentInput,
+  CreateKnowledgeNodeInput,
   CreateUserInput,
   DebugReachabilityResult,
   DemoBootstrap,
@@ -18,12 +19,14 @@ import type {
   GraphEdge,
   KnowledgeNode,
   LoginResponse,
+  OrganizationRecord,
   PermissionProfile,
   PipelineMode,
   PipelineRunRecord,
   ReachabilityResult,
   RuleEngineDefinition,
   RuleRunResponse,
+  UpdateKnowledgeNodeInput,
   UserRecord,
 } from './types'
 
@@ -139,6 +142,34 @@ export class ApiClient {
   // -- Knowledge ---------------------------------------------------------------
   knowledgeNodes(workspaceId: string): Promise<KnowledgeNode[]> {
     return this.get<KnowledgeNode[]>(`/workspaces/${workspaceId}/nodes`)
+  }
+
+  knowledgeNode(id: string): Promise<KnowledgeNode> {
+    return this.get<KnowledgeNode>(`/nodes/${id}`)
+  }
+
+  createKnowledgeNode(
+    workspaceId: string,
+    input: CreateKnowledgeNodeInput,
+  ): Promise<KnowledgeNode> {
+    return this.post<KnowledgeNode>(`/workspaces/${workspaceId}/nodes`, input)
+  }
+
+  updateKnowledgeNode(id: string, input: UpdateKnowledgeNodeInput): Promise<KnowledgeNode> {
+    return this.request<KnowledgeNode>(`/nodes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    })
+  }
+
+  /** Soft-delete (ADMIN/QUALITY). */
+  deleteKnowledgeNode(id: string): Promise<void> {
+    return this.request<void>(`/nodes/${id}`, { method: 'DELETE' })
+  }
+
+  // -- Organizations -------------------------------------------------------------
+  currentOrganization(): Promise<OrganizationRecord> {
+    return this.get<OrganizationRecord>('/organizations/current')
   }
 
   // -- Graph (Phase 4) ----------------------------------------------------------

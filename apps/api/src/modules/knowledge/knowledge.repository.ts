@@ -58,6 +58,31 @@ export class KnowledgePrismaRepository
     return rows.length
   }
 
+  /** Every read/write that returns a row must eager-load the `complianceTags`
+   *  relation so entities and responses carry the persisted tags — the generic
+   *  base repository does not know about relations. */
+  override async findById(id: EntityId): Promise<KnowledgeNodeEntity | null> {
+    const row = await this.delegate.findFirst({
+      where: { id, deletedAt: null },
+      include: { complianceTags: true },
+    })
+    return row === null ? null : this.toEntity(row)
+  }
+
+  override async create(input: unknown): Promise<KnowledgeNodeEntity> {
+    const row = await this.delegate.create({ data: input, include: { complianceTags: true } })
+    return this.toEntity(row)
+  }
+
+  override async update(id: EntityId, input: unknown): Promise<KnowledgeNodeEntity> {
+    const row = await this.delegate.update({
+      where: { id },
+      data: input,
+      include: { complianceTags: true },
+    })
+    return this.toEntity(row)
+  }
+
   protected toEntity(row: unknown): KnowledgeNodeEntity {
     return prismaKnowledgeNodeToEntity(row as KnowledgeNode)
   }

@@ -26,7 +26,7 @@ import { EmptyState } from '@/components/dashboard/empty-state'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useApi } from '@/components/dashboard/api-provider'
-import { useApiData } from '@/hooks/use-api-data'
+import { useDepartments } from '@/hooks/use-api-query'
 import type { Department } from '@/lib/api/types'
 
 interface DepartmentNode extends Department {
@@ -57,10 +57,7 @@ export default function DepartmentsPage() {
   const { client, bootstrap, selectedUser } = useApi()
   const organizationId = bootstrap?.organizationId ?? null
 
-  const departments = useApiData<Department[]>(
-    async (api) => (organizationId === null ? [] : api.departments(organizationId)),
-    [organizationId],
-  )
+  const departments = useDepartments(organizationId)
   const departmentList = React.useMemo(() => departments.data ?? [], [departments.data])
   const tree = React.useMemo(() => buildTree(departmentList), [departmentList])
 
@@ -107,7 +104,7 @@ export default function DepartmentsPage() {
         await client.updateDepartment(editingId, payload)
       }
       setDialogOpen(false)
-      departments.reload()
+      void departments.refetch()
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Save failed')
     } finally {
@@ -119,7 +116,7 @@ export default function DepartmentsPage() {
     if (client === null || !window.confirm(`Delete ${department.name}?`)) return
     try {
       await client.deleteDepartment(department.id)
-      departments.reload()
+      void departments.refetch()
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Delete failed')
     }
@@ -212,7 +209,7 @@ export default function DepartmentsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {departments.loading ? (
+          {departments.isPending ? (
             <Skeleton className="h-48 w-full" />
           ) : tree.length === 0 ? (
             <EmptyState

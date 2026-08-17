@@ -18,7 +18,11 @@ import { PageHeader } from '@/components/dashboard/page-header'
 import { RuleExplanationPanel } from '@/components/dashboard/rule-explanation-panel'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useApi } from '@/components/dashboard/api-provider'
-import { useApiData } from '@/hooks/use-api-data'
+import {
+  useKnowledgeNodes,
+  useRuleEngineDefinition,
+  useWorkspaceRules,
+} from '@/hooks/use-api-query'
 import type { RuleRunResponse } from '@/lib/api/types'
 
 /** Human-readable metadata for each pipeline stage (kept in sync with the API's rule definitions). */
@@ -69,15 +73,9 @@ export default function RulesPage() {
   const { client, bootstrap, status } = useApi()
   const workspaceId = bootstrap?.workspaceId ?? null
 
-  const definition = useApiData(async (api) => api.ruleEngineDefinition(), [])
-  const rules = useApiData(
-    async (api) => (workspaceId === null ? [] : api.workspaceRules(workspaceId)),
-    [workspaceId],
-  )
-  const nodes = useApiData(
-    async (api) => (workspaceId === null ? [] : api.knowledgeNodes(workspaceId)),
-    [workspaceId],
-  )
+  const definition = useRuleEngineDefinition()
+  const rules = useWorkspaceRules(workspaceId)
+  const nodes = useKnowledgeNodes(workspaceId)
 
   const nodeList = React.useMemo(() => nodes.data ?? [], [nodes.data])
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
@@ -145,9 +143,10 @@ export default function RulesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {definition.loading ? (
+          {' '}
+          {definition.isPending ? (
             <Skeleton className="h-24 w-full" />
-          ) : definition.data === null ? (
+          ) : definition.data === undefined ? (
             <EmptyState
               icon={GitBranch}
               title="No definition available"
@@ -212,7 +211,7 @@ export default function RulesPage() {
                 </button>
               </div>
 
-              {nodes.loading ? (
+              {nodes.isPending ? (
                 <Skeleton className="h-48 w-full" />
               ) : nodeList.length === 0 ? (
                 <p className="text-muted-foreground bg-muted/40 rounded-lg p-2.5 text-xs">
@@ -286,7 +285,7 @@ export default function RulesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {rules.loading ? (
+          {rules.isPending ? (
             <Skeleton className="h-24 w-full" />
           ) : (rules.data ?? []).length === 0 ? (
             <EmptyState

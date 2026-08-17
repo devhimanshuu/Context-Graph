@@ -10,7 +10,7 @@ import { useApi } from '@/components/dashboard/api-provider'
 import { ContextQueryPanel } from '@/components/dashboard/context-query-panel'
 import { ContextPackageSummary } from '@/components/dashboard/context-package-summary'
 import { RuleExplanationPanel } from '@/components/dashboard/rule-explanation-panel'
-import { useApiData } from '@/hooks/use-api-data'
+import { useKnowledgeNodes } from '@/hooks/use-api-query'
 import { cn } from '@/lib/utils'
 import type { CompressionHint, ContextPackage } from '@/lib/api/types'
 
@@ -25,10 +25,7 @@ export default function ContextsPage() {
   const { client, bootstrap, status } = useApi()
   const workspaceId = bootstrap?.workspaceId ?? null
 
-  const nodes = useApiData(
-    async (api) => (workspaceId === null ? [] : api.knowledgeNodes(workspaceId)),
-    [workspaceId],
-  )
+  const nodes = useKnowledgeNodes(workspaceId)
 
   const [result, setResult] = React.useState<ContextPackage | null>(null)
   const [running, setRunning] = React.useState(false)
@@ -95,7 +92,7 @@ export default function ContextsPage() {
         <div className="lg:col-span-1">
           <ContextQueryPanel
             nodes={nodeList}
-            loading={nodes.loading}
+            loading={nodes.isPending}
             running={running}
             disabled={workspaceId === null || status === 'error'}
             error={runError}

@@ -22,6 +22,7 @@ import {
   createKnowledgeNodeInputToPrisma,
   entityToKnowledgeNodeResponse,
   knowledgeNodeToResourceContext,
+  updateKnowledgeNodeInputToPrisma,
   type KnowledgeNodeAuthSource,
 } from './knowledge.mapper'
 import type { CreateKnowledgeNodeInput, UpdateKnowledgeNodeInput } from './knowledge.validation'
@@ -149,7 +150,10 @@ export class KnowledgeService implements IKnowledgeService {
     )
     this.assertAllowed(decision, 'knowledge-node')
 
-    const updated = await this.repository.update(id, input)
+    const updated = await this.repository.update(
+      id,
+      updateKnowledgeNodeInputToPrisma(input, user.id),
+    )
     return entityToKnowledgeNodeResponse(updated)
   }
 

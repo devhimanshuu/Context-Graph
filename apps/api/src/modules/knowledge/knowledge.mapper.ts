@@ -2,7 +2,10 @@ import type { ComplianceTag, KnowledgeNode } from '@prisma/client'
 import { type EntityId, type Metadata, type NodeStatus, type NodeType } from '@contextgraph/types'
 import { KnowledgeNodeEntity } from './knowledge.entity'
 import { type KnowledgeNodeResponseDto } from './knowledge.dto'
-import { type CreateKnowledgeNodeInput } from './knowledge.validation'
+import {
+  type CreateKnowledgeNodeInput,
+  type UpdateKnowledgeNodeInput,
+} from './knowledge.validation'
 import {
   ResourceVisibility,
   type ResourceAuthorizationContext,
@@ -137,5 +140,28 @@ export function createKnowledgeNodeInputToPrisma(
     complianceTags: {
       create: (input.complianceTags ?? []).map((tag) => ({ tag })),
     },
+  }
+}
+
+/**
+ * Maps an update input into the Prisma shape. `complianceTags` is a relation
+ * (not a scalar list), so an update must replace the join rows — Prisma rejects
+ * a raw tag array. Fields not provided stay `undefined` and are left untouched.
+ */
+export function updateKnowledgeNodeInputToPrisma(
+  input: UpdateKnowledgeNodeInput,
+  actorId: string,
+): Record<string, unknown> {
+  const { complianceTags, ...rest } = input
+  return {
+    ...rest,
+    updatedById: actorId,
+    complianceTags:
+      complianceTags === undefined
+        ? undefined
+        : {
+            deleteMany: {},
+            create: complianceTags.map((tag) => ({ tag })),
+          },
   }
 }

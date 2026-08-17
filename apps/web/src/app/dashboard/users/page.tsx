@@ -25,8 +25,8 @@ import { EmptyState } from '@/components/dashboard/empty-state'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useApi } from '@/components/dashboard/api-provider'
-import { useApiData } from '@/hooks/use-api-data'
-import type { Department, UserRecord } from '@/lib/api/types'
+import { useDepartments, useUsers } from '@/hooks/use-api-query'
+import type { UserRecord } from '@/lib/api/types'
 
 const ROLES = ['ADMIN', 'HOD', 'EDITOR', 'VIEWER', 'QUALITY', 'AUDITOR'] as const
 const LEVELS = ['NONE', 'READ', 'WRITE', 'ADMIN'] as const
@@ -63,11 +63,8 @@ export default function UsersPage() {
   const { client, bootstrap, selectedUser } = useApi()
   const organizationId = bootstrap?.organizationId ?? null
 
-  const users = useApiData<UserRecord[]>(async (api) => api.users(), [])
-  const departments = useApiData<Department[]>(
-    async (api) => (organizationId === null ? [] : api.departments(organizationId)),
-    [organizationId],
-  )
+  const users = useUsers()
+  const departments = useDepartments(organizationId)
   const departmentList = React.useMemo(() => departments.data ?? [], [departments.data])
 
   const [form, setForm] = React.useState<UserFormState>(EMPTY_FORM)
@@ -116,7 +113,7 @@ export default function UsersPage() {
         await client.updateUser(editingId, payload)
       }
       setDialogOpen(false)
-      users.reload()
+      void users.refetch()
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Save failed')
     } finally {
@@ -128,7 +125,7 @@ export default function UsersPage() {
     if (client === null || !window.confirm(`Delete ${user.name}? This cannot be undone.`)) return
     try {
       await client.deleteUser(user.id)
-      users.reload()
+      void users.refetch()
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Delete failed')
     }
@@ -159,7 +156,7 @@ export default function UsersPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {users.loading ? (
+          {users.isPending ? (
             <Skeleton className="h-48 w-full" />
           ) : userList.length === 0 ? (
             <EmptyState

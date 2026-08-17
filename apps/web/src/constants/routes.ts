@@ -11,6 +11,7 @@ export const ROUTES = {
   /** Authenticated dashboard (overview). */
   dashboard: '/dashboard',
   knowledgeGraph: '/dashboard/knowledge-graph',
+  knowledge: '/dashboard/knowledge',
   pipeline: '/dashboard/pipeline',
   rules: '/dashboard/rules',
   permissions: '/dashboard/permissions',
@@ -18,12 +19,18 @@ export const ROUTES = {
   audit: '/dashboard/audit',
   users: '/dashboard/users',
   departments: '/dashboard/departments',
+  organizations: '/dashboard/organizations',
   analytics: '/dashboard/analytics',
   configuration: '/dashboard/configuration',
   settings: '/dashboard/settings',
 } as const
 
 export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES]
+
+/** Deep-link to one immutable pipeline run by its requestId (the URL param of the detail route). */
+export function pipelineRunDetail(requestId: string): string {
+  return `${ROUTES.pipeline}/${encodeURIComponent(requestId)}`
+}
 
 /* Maps a route to its human-readable title. Used by the header breadcrumbs (`src/utils/breadcrumbs.ts`). Keys are */
 export const ROUTE_TITLES: Readonly<Record<string, string>> = {
@@ -33,6 +40,7 @@ export const ROUTE_TITLES: Readonly<Record<string, string>> = {
   [ROUTES.onboarding]: 'Welcome',
   [ROUTES.dashboard]: 'Overview',
   [ROUTES.knowledgeGraph]: 'Knowledge Graph',
+  [ROUTES.knowledge]: 'Knowledge',
   [ROUTES.pipeline]: 'Pipeline',
   [ROUTES.rules]: 'Rules',
   [ROUTES.permissions]: 'Permissions',
@@ -40,6 +48,7 @@ export const ROUTE_TITLES: Readonly<Record<string, string>> = {
   [ROUTES.audit]: 'Audit',
   [ROUTES.users]: 'Users',
   [ROUTES.departments]: 'Departments',
+  [ROUTES.organizations]: 'Organization',
   [ROUTES.analytics]: 'Analytics',
   [ROUTES.configuration]: 'Configuration',
   [ROUTES.settings]: 'Settings',
