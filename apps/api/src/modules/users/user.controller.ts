@@ -43,6 +43,14 @@ export class UsersController {
     return this.usersService.list(user.organizationId, pagination)
   }
 
+  /** Declared before `:id` so the literal segment wins over the param route. */
+  @Get('me')
+  @ApiOperation({ summary: 'Get the current authenticated user (trusted, from the JWT)' })
+  @ApiOkResponse({ type: UserResponseDto })
+  me(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.findById(user.organizationId, user.id)
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a user by id (org-scoped)' })
   @ApiOkResponse({ type: UserResponseDto })

@@ -45,6 +45,8 @@ export interface RecordPipelineRunInput {
   readonly error: { code: string; message: string } | null
   /** Tokens used by the final package (0 for failed runs). */
   readonly tokensUsed: number
+  /** Client-supplied idempotency key (null when the request had none). */
+  readonly idempotencyKey?: string | null
 }
 
 /**
@@ -64,6 +66,14 @@ export abstract class IPipelineRunService {
     organizationId: EntityId,
     query: PipelineRunListInput,
   ): Promise<PipelineRunResponseDto[]>
+  /**
+   * Resolves the requestId of a completed run recorded under a client
+   * Idempotency-Key, or null — used by the pipeline to short-circuit retries.
+   */
+  abstract findCompletedByOrganizationAndKey(
+    organizationId: EntityId,
+    idempotencyKey: string,
+  ): Promise<{ requestId: string } | null>
   /**
    * Rebuilds the ContextPackage of a completed run from its immutable
    * record — powers historical formatting and audit inspection.
@@ -103,6 +113,13 @@ export class PipelineRunService implements IPipelineRunService {
     }
     const runs = await this.repository.findByWorkspace(organizationId, listQuery)
     return runs.map((run) => entityToPipelineRunResponse(run))
+  }
+
+  async findCompletedByOrganizationAndKey(
+    organizationId: EntityId,
+    idempotencyKey: string,
+  ): Promise<{ requestId: string } | null> {
+    return this.repository.findCompletedByOrganizationAndKey(organizationId, idempotencyKey)
   }
 
   async reconstructPackage(organizationId: EntityId, requestId: string): Promise<ContextPackage> {

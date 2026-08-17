@@ -5,30 +5,31 @@ import { HEADERS } from '@contextgraph/shared'
 import type { AuthenticatedUser } from '@contextgraph/types'
 import { CurrentUser } from '../../common/decorators/current-user.decorator'
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
-import { IContextPipelineOrchestrator } from './orchestrator/context-pipeline-orchestrator'
+import {
+  IContextPipelineOrchestrator,
+  type ContextResolveOptions,
+} from './orchestrator/context-pipeline-orchestrator'
 import {
   contextPipelineRequestSchema,
   type ContextPipelineInput,
 } from './validation/context-pipeline.validation'
 import { ContextPackageDto } from './dto/context-package.dto'
-import { IPipelineRunService } from './runs/pipeline-run.service'
-import { IContextFormatter } from './formatter/context-formatter.contracts'
-import { contextFormatSchema, type ContextFormatInput } from './formatter/context-format.validation'
-import { FormattedContextDocumentDto } from './formatter/context-format.dto'
 import { parseIdempotencyKey } from './idempotency-key'
-import type { ContextResolveOptions } from './orchestrator/context-pipeline-orchestrator'
 
+/**
+ * Primary context API — the thin adapter over the Phase 7 orchestrator.
+ * Holds no pipeline logic: it validates the request, extracts the trusted
+ * principal + optional Idempotency-Key, and delegates. Authorization fields
+ * (role, clearance, organization) are NEVER accepted from the body — they are
+ * derived server-side from the JWT by the guards.
+ */
 @ApiBearerAuth()
-@ApiTags('Pipeline')
-@Controller('pipeline/context')
-export class ContextPipelineController {
+@ApiTags('Context')
+@Controller('context')
+export class ContextController {
   constructor(
     @Inject(IContextPipelineOrchestrator)
     private readonly orchestrator: IContextPipelineOrchestrator,
-    @Inject(IPipelineRunService)
-    private readonly runs: IPipelineRunService,
-    @Inject(IContextFormatter)
-    private readonly formatter: IContextFormatter,
   ) {}
 
   @Get('definition')
@@ -37,26 +38,14 @@ export class ContextPipelineController {
     return this.orchestrator.getDefinition()
   }
 
-  @Post('format')
-  @ApiOperation({
-    summary:
-      "Format a stored run's context package into a provider-independent, prompt-ready document",
-  })
-  @ApiOkResponse({ type: FormattedContextDocumentDto })
-  async format(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body(new ZodValidationPipe(contextFormatSchema)) body: ContextFormatInput,
-  ) {
-    const pkg = await this.runs.reconstructPackage(user.organizationId, body.requestId)
-    return this.formatter.format(pkg, { includeExclusions: body.includeExclusions })
-  }
-
   @Post('resolve')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @ApiOperation({
     summary:
-      'Resolve a context package: user + entry node → ranked, bounded, explainable candidates',
+      'Resolve a context package — user + entry node → ranked, bounded, explainable candidates',
+    description:
+      'Sends the Idempotency-Key header to safely retry: a completed run under the same key is returned without re-execution.',
   })
   @ApiOkResponse({ type: ContextPackageDto })
   resolve(

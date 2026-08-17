@@ -33,12 +33,7 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
         <body className="font-sans antialiased">
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
+          <ThemeProvider attribute="class" defaultTheme="dark" disableTransitionOnChange>
             <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
             <Toaster richColors position="top-right" />
           </ThemeProvider>

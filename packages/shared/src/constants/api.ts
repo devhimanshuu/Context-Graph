@@ -17,6 +17,8 @@ export const HEADERS = {
   REQUEST_ID: "x-request-id",
   /** Optional tenant hint for org-scoped routes (replaced by JWT org claim). */
   ORGANIZATION: "x-organization-id",
+  /** Client-supplied key for idempotent operations (e.g. context resolve). */
+  IDEMPOTENCY_KEY: "idempotency-key",
 } as const;
 
 export const DEFAULT_PAGE_SIZE = 20;

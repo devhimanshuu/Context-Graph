@@ -11,6 +11,11 @@ export class RequestIdMiddleware implements NestMiddleware {
     const requestId = (req.headers[HEADERS.REQUEST_ID] as string | undefined) ?? uuid()
     const correlationId = (req.headers[HEADERS.CORRELATION_ID] as string | undefined) ?? uuid()
 
+    // Echo into the request headers so transport logging (pino customProps)
+    // carries the SAME id for generated and client-supplied values.
+    req.headers[HEADERS.REQUEST_ID] = requestId
+    req.headers[HEADERS.CORRELATION_ID] = correlationId
+
     res.setHeader(HEADERS.REQUEST_ID, requestId)
     res.setHeader(HEADERS.CORRELATION_ID, correlationId)
 

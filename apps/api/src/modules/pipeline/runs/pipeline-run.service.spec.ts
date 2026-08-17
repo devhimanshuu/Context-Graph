@@ -120,6 +120,7 @@ function makeRepository(): IPipelineRunRepository {
     record: vi.fn(async () => makeEntity()),
     findByRequestId: vi.fn(async () => makeEntity()),
     findByWorkspace: vi.fn(async () => [makeEntity()]),
+    findCompletedByOrganizationAndKey: vi.fn(async () => null),
   } as unknown as IPipelineRunRepository
 }
 
@@ -154,6 +155,23 @@ describe('PipelineRunService', () => {
     await expect(service.findByRequestId(ORG_ID, 'missing')).rejects.toBeInstanceOf(
       NotFoundException,
     )
+  })
+
+  it('resolves a completed run by organization and idempotency key', async () => {
+    vi.mocked(repository.findCompletedByOrganizationAndKey).mockResolvedValueOnce({
+      requestId: 'req-1',
+    })
+    const result = await service.findCompletedByOrganizationAndKey(ORG_ID, 'resolve-abc-123')
+    expect(result?.requestId).toBe('req-1')
+    expect(repository.findCompletedByOrganizationAndKey).toHaveBeenCalledWith(
+      ORG_ID,
+      'resolve-abc-123',
+    )
+  })
+
+  it('returns null when no completed run exists under the idempotency key', async () => {
+    const result = await service.findCompletedByOrganizationAndKey(ORG_ID, 'resolve-abc-123')
+    expect(result).toBeNull()
   })
 
   it('lists runs for a workspace, newest first, with pagination', async () => {

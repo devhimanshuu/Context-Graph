@@ -29,6 +29,7 @@ import {
   PipelineTimeoutException,
 } from '../errors/pipeline-errors'
 import { ContextPipelineOrchestrator } from './context-pipeline-orchestrator'
+import type { ContextPackage } from '../contracts/context-pipeline.contracts'
 
 const ORG_ID = 'org-a'
 const WORKSPACE_ID = 'ws-1'
@@ -140,7 +141,11 @@ function makeFakes() {
   const auditRecords: unknown[] = []
   const audit = { recordRun: vi.fn(async (entry: unknown) => auditRecords.push(entry)) }
   const runRecords: unknown[] = []
-  const runs = { record: vi.fn(async (input: unknown) => runRecords.push(input)) }
+  const runs = {
+    record: vi.fn(async (input: unknown) => runRecords.push(input)),
+    findCompletedByOrganizationAndKey: vi.fn(async () => null),
+    reconstructPackage: vi.fn(),
+  }
   const metrics = {
     recordRun: vi.fn(),
     snapshot: vi.fn(() => ({})),
@@ -282,6 +287,80 @@ describe('ContextPipelineOrchestrator', () => {
     expect(record.trace).toHaveLength(DEFAULT_PIPELINE_STAGES.length)
     expect(record.error).toBeNull()
     expect(record.tokensUsed).toBe(pkg.tokensUsed)
+    expect(record.idempotencyKey).toBeNull()
+  })
+
+  it('short-circuits a completed run recorded under the same Idempotency-Key', async () => {
+    fakes.runs.findCompletedByOrganizationAndKey.mockResolvedValue({ requestId: 'req-existing' })
+    const existingPkg = {
+      packageId: 'pkg-existing',
+      requestId: 'req-existing',
+    } as unknown as ContextPackage
+    fakes.runs.reconstructPackage.mockResolvedValue(existingPkg)
+
+    const pkg = await service.resolve(
+      USER,
+      {
+        workspaceId: WORKSPACE_ID,
+        entryNodeId: ENTRY_ID,
+        maxDepth: 3,
+        strategy: 'bfs' as const,
+        tokenBudget: 4096,
+        evaluatedAt: EVALUATED_AT,
+      },
+      { idempotencyKey: 'resolve-abc-123' },
+    )
+
+    expect(pkg).toBe(existingPkg)
+    expect(fakes.runs.findCompletedByOrganizationAndKey).toHaveBeenCalledWith(
+      ORG_ID,
+      'resolve-abc-123',
+    )
+    // The engines never ran and nothing was recorded.
+    expect(fakes.graph.reachableNodes).not.toHaveBeenCalled()
+    expect(fakes.audit.recordRun).not.toHaveBeenCalled()
+    expect(fakes.runs.record).not.toHaveBeenCalled()
+  })
+
+  it('records the Idempotency-Key on the fresh run when none exists yet', async () => {
+    const nodeIds = [ENTRY_ID, 'node-a']
+    fakes.authorization.getContext.mockResolvedValue({ organizationId: ORG_ID })
+    fakes.graph.reachableNodes.mockResolvedValue(makeReachability(nodeIds))
+    fakes.knowledge.findByWorkspace.mockResolvedValue(nodeIds.map((id) => makeEntity(id)))
+    fakes.rules.execute.mockResolvedValue({
+      requestId: 'req-1',
+      entryNodeIds: [ENTRY_ID],
+      candidates: [makeCandidate(ENTRY_ID, 50, 0), makeCandidate('node-a', 80, 1)],
+      explanations: nodeIds.map((id) => ({
+        nodeId: id,
+        included: true,
+        finalReasonCode: null,
+        failingRuleId: null,
+        ruleResults: [],
+      })),
+      metrics: makeMetrics(2),
+      executedStages: [],
+    })
+
+    await service.resolve(
+      USER,
+      {
+        workspaceId: WORKSPACE_ID,
+        entryNodeId: ENTRY_ID,
+        maxDepth: 3,
+        strategy: 'bfs' as const,
+        tokenBudget: 4096,
+        evaluatedAt: EVALUATED_AT,
+      },
+      { idempotencyKey: 'resolve-abc-123' },
+    )
+
+    expect(fakes.runs.findCompletedByOrganizationAndKey).toHaveBeenCalledWith(
+      ORG_ID,
+      'resolve-abc-123',
+    )
+    const record = fakes.runRecords[0] as { idempotencyKey: string | null }
+    expect(record.idempotencyKey).toBe('resolve-abc-123')
   })
 
   it('is deterministic: identical inputs produce identical content with fresh ids', async () => {

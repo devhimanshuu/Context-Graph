@@ -16,6 +16,7 @@ import {
   ContextPipelineOrchestrator,
 } from './orchestrator/context-pipeline-orchestrator'
 import { ContextPipelineController } from './context-pipeline.controller'
+import { ContextController } from './context.controller'
 import { IContextBudget, TokenContextBudget } from './budget/context-budget'
 import { PIPELINE_METRICS, InMemoryPipelineMetrics } from './observability/pipeline-metrics'
 import { PIPELINE_AUDIT, PipelineAuditLogger } from './observability/pipeline-audit'
@@ -41,6 +42,7 @@ import { PipelineRunController } from './runs/pipeline-run.controller'
     ContextAssemblyController,
     ContextPipelineController,
     PipelineRunController,
+    ContextController,
   ],
   providers: [
     { provide: IPipelineService, useClass: PipelineService },

@@ -26,6 +26,14 @@ export abstract class IPipelineRunRepository {
     organizationId: EntityId,
     query: PipelineRunListQuery,
   ): Promise<PipelineRunEntity[]>
+  /**
+   * Returns the requestId of the completed run recorded under a client
+   * Idempotency-Key (null when none exists yet).
+   */
+  abstract findCompletedByOrganizationAndKey(
+    organizationId: EntityId,
+    idempotencyKey: string,
+  ): Promise<{ requestId: string } | null>
 }
 
 @Injectable()
@@ -69,9 +77,21 @@ export class PipelineRunPrismaRepository implements IPipelineRunRepository {
             ? Prisma.JsonNull
             : (input.error as unknown as Prisma.InputJsonValue),
         tokensUsed: input.tokensUsed,
+        idempotencyKey: input.idempotencyKey ?? null,
       },
     })
     return prismaPipelineRunToEntity(row)
+  }
+
+  async findCompletedByOrganizationAndKey(
+    organizationId: EntityId,
+    idempotencyKey: string,
+  ): Promise<{ requestId: string } | null> {
+    const row = await this.prisma.pipelineRun.findFirst({
+      where: { organizationId, idempotencyKey, status: 'completed' },
+      select: { requestId: true },
+    })
+    return row === null ? null : { requestId: row.requestId }
   }
 
   async findByRequestId(

@@ -28,6 +28,7 @@ export function prismaPipelineRunToEntity(row: PipelineRun): PipelineRunEntity {
     (row.error ?? null) as unknown as PipelineRunEntity['error'],
     row.tokensUsed,
     row.createdAt.toISOString(),
+    row.idempotencyKey,
   )
 }
 
@@ -57,5 +58,6 @@ export function entityToPipelineRunResponse(entity: PipelineRunEntity): Pipeline
     error: entity.error,
     tokensUsed: entity.tokensUsed,
     createdAt: entity.createdAt,
+    ...(entity.idempotencyKey !== null ? { idempotencyKey: entity.idempotencyKey } : {}),
   }
 }

@@ -27,6 +27,7 @@ import { OrganizationGuard } from './common/guards/organization.guard'
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter'
 import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 import { ExecutionTimeInterceptor } from './common/interceptors/execution-time.interceptor'
+import { MetricsInterceptor } from './common/interceptors/metrics.interceptor'
 
 /* Root module of the modular monolith. Global (APP_*) providers enforce cross-cutting concerns on every route: */
 @Module({
@@ -60,6 +61,7 @@ import { ExecutionTimeInterceptor } from './common/interceptors/execution-time.i
     { provide: APP_GUARD, useClass: OrganizationGuard },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     { provide: APP_INTERCEPTOR, useClass: ExecutionTimeInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: MetricsInterceptor },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
   ],
 })

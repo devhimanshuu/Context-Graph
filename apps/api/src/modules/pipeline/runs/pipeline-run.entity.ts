@@ -42,6 +42,8 @@ export class PipelineRunEntity extends BaseEntity {
     readonly error: { code: string; message: string } | null,
     readonly tokensUsed: number,
     readonly createdAt: Timestamp,
+    /** Client-supplied idempotency key (null when the request had none). */
+    readonly idempotencyKey: string | null = null,
   ) {
     super()
   }

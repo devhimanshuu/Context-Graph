@@ -491,6 +491,10 @@ model PipelineRun {
   requestId      String       @unique
   /// Fresh per run; null when the run failed before a package was produced.
   packageId      String?      @unique
+  /// Client-supplied Idempotency-Key (unique per organization). Completed runs
+  /// with the same key are returned without re-execution; a concurrent
+  /// duplicate insert races onto this index and is rejected with 409.
+  idempotencyKey String?
   version        String
   mode           String
   strategy       String
@@ -523,4 +527,5 @@ model PipelineRun {
   @@index([organizationId, createdAt])
   @@index([organizationId, workspaceId, createdAt])
   @@index([requestId])
+  @@unique([organizationId, idempotencyKey])
 }

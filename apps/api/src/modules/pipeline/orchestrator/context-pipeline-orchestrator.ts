@@ -44,8 +44,18 @@ import {
 } from '../errors/pipeline-errors'
 import type { ContextPipelineInput } from '../validation/context-pipeline.validation'
 
+export interface ContextResolveOptions {
+  /** Client-supplied Idempotency-Key: a completed run under the same key is
+   *  returned without re-execution (deterministic replay semantics). */
+  readonly idempotencyKey?: string | null
+}
+
 export abstract class IContextPipelineOrchestrator {
-  abstract resolve(user: AuthenticatedUser, input: ContextPipelineInput): Promise<ContextPackage>
+  abstract resolve(
+    user: AuthenticatedUser,
+    input: ContextPipelineInput,
+    options?: ContextResolveOptions,
+  ): Promise<ContextPackage>
   abstract getDefinition(): { version: string; stages: readonly string[] }
 }
 
@@ -84,7 +94,25 @@ export class ContextPipelineOrchestrator implements IContextPipelineOrchestrator
     return { version: PIPELINE_VERSION, stages: DEFAULT_PIPELINE_STAGES }
   }
 
-  async resolve(user: AuthenticatedUser, input: ContextPipelineInput): Promise<ContextPackage> {
+  async resolve(
+    user: AuthenticatedUser,
+    input: ContextPipelineInput,
+    options?: ContextResolveOptions,
+  ): Promise<ContextPackage> {
+    // Idempotency: a completed run recorded under the client key is returned
+    // verbatim (same request + evaluatedAt => deterministic content). Failed
+    // runs are NOT short-circuited — the caller retries until success.
+    const idempotencyKey = options?.idempotencyKey ?? null
+    if (idempotencyKey !== null) {
+      const existing = await this.runs.findCompletedByOrganizationAndKey(
+        user.organizationId,
+        idempotencyKey,
+      )
+      if (existing !== null) {
+        return this.runs.reconstructPackage(user.organizationId, existing.requestId)
+      }
+    }
+
     // Determinism anchor: one evaluation instant for every stage and rule.
     const evaluatedAt: Timestamp = input.evaluatedAt ?? new Date().toISOString()
     const config = mergePipelineConfig(DEFAULT_PIPELINE_CONFIG, {
@@ -345,6 +373,7 @@ export class ContextPipelineOrchestrator implements IContextPipelineOrchestrator
         exclusions: pkg.exclusions,
         error: null,
         tokensUsed: pkg.tokensUsed,
+        idempotencyKey,
       })
       this.metrics.recordRun(mode, pkg.summary.metrics, false)
 
@@ -401,6 +430,7 @@ export class ContextPipelineOrchestrator implements IContextPipelineOrchestrator
               : ERROR_CODES.PIPELINE,
           message: error instanceof Error ? error.message : 'Pipeline execution failed',
         },
+        idempotencyKey,
       })
       this.metrics.recordRun(
         mode,
@@ -445,6 +475,7 @@ export class ContextPipelineOrchestrator implements IContextPipelineOrchestrator
     exclusions: readonly CandidateExclusion[] | null
     error: { code: string; message: string } | null
     tokensUsed: number
+    idempotencyKey: string | null
   }): Promise<void> {
     const record: RecordPipelineRunInput = {
       organizationId: input.user.organizationId,
@@ -469,6 +500,7 @@ export class ContextPipelineOrchestrator implements IContextPipelineOrchestrator
       exclusions: input.exclusions,
       error: input.error,
       tokensUsed: input.tokensUsed,
+      idempotencyKey: input.idempotencyKey,
     }
     await this.runs.record(record)
   }

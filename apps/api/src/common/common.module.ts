@@ -3,8 +3,10 @@ import { LoggerModule } from 'nestjs-pino'
 import { ConfigService } from '../config/config.service'
 import { CACHE_PROVIDER } from './interfaces/cache-provider.interface'
 import { LOGGER } from './interfaces/logger.interface'
+import { METRICS_LOGGER } from './interfaces/metrics-logger.interface'
 import { PinoLoggerService } from './logger/pino-logger.service'
 import { InMemoryCacheProvider } from './cache/in-memory-cache.provider'
+import { NoopMetricsLogger } from './metrics/noop-metrics-logger'
 import { RequestIdMiddleware } from './middleware/request-id.middleware'
 import { CorrelationIdMiddleware } from './middleware/correlation-id.middleware'
 import { LoggingMiddleware } from './middleware/logging.middleware'
@@ -29,8 +31,9 @@ import { LoggingMiddleware } from './middleware/logging.middleware'
   providers: [
     { provide: LOGGER, useClass: PinoLoggerService },
     { provide: CACHE_PROVIDER, useClass: InMemoryCacheProvider },
+    { provide: METRICS_LOGGER, useClass: NoopMetricsLogger },
   ],
-  exports: [LOGGER, CACHE_PROVIDER],
+  exports: [LOGGER, CACHE_PROVIDER, METRICS_LOGGER],
 })
 export class CommonModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

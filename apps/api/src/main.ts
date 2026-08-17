@@ -6,6 +6,7 @@ import { VersioningType } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import { Logger, LoggerErrorInterceptor } from 'nestjs-pino'
+import type { NestExpressApplication } from '@nestjs/platform-express'
 import {
   API_DEFAULT_VERSION,
   API_GLOBAL_PREFIX,
@@ -19,7 +20,9 @@ import { ConfigService } from './config/config.service'
 
 /* Application bootstrap. Layer order matters: */
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true })
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+  })
   app.useLogger(app.get(Logger))
 
   const config = app.get(ConfigService)
@@ -27,6 +30,9 @@ async function bootstrap(): Promise<void> {
   app.use(helmet())
   app.use(compression())
   app.enableCors({ origin: config.corsOrigins, credentials: true })
+
+  // Request-size protection: reject oversized JSON payloads before any handler runs.
+  app.useBodyParser('json', { limit: '256kb' })
 
   app.setGlobalPrefix(API_GLOBAL_PREFIX)
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: API_DEFAULT_VERSION })

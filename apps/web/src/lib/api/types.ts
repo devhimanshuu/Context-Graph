@@ -499,10 +499,13 @@ export interface PipelineRunRecord {
   evaluatedAt: string
   status: 'completed' | 'failed'
   failedStageId: string | null
-  trace: Record<string, unknown>[]
-  metrics: Record<string, unknown> | null
-  candidates: Record<string, unknown>[] | null
-  exclusions: Record<string, unknown>[] | null
+  /** The validated request as received (immutable, replay source of truth). */
+  request: Record<string, unknown>
+  /** Ordered stage results — the persisted execution trace. */
+  trace: PipelineStageResult[]
+  metrics: PipelineRunMetrics | null
+  candidates: PipelineCandidate[] | null
+  exclusions: PipelineExclusion[] | null
   error: { code: string; message: string } | null
   tokensUsed: number
   createdAt: string

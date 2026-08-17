@@ -75,6 +75,12 @@ export class PipelineRunResponseDto {
   @ApiPropertyOptional({ type: PipelineRunErrorDto, nullable: true })
   error?: PipelineRunErrorDto | null
 
+  @ApiPropertyOptional({
+    example: 'resolve-3f9c2e81',
+    description: 'Client-supplied Idempotency-Key, when the run was requested with one',
+  })
+  idempotencyKey?: string
+
   @ApiProperty({
     example: 512,
     description: 'Tokens used by the final package (0 for failed runs)',

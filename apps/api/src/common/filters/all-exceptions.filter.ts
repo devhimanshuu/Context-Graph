@@ -76,11 +76,33 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return { statusCode, body: { code: statusToCode(statusCode), message } }
     }
 
+    // Express/body-parser errors (oversized payloads, malformed JSON) carry a
+    // numeric `status` but are NOT HttpException instances — map them so the
+    // client gets a stable code instead of a 500.
+    const transportStatus = extractTransportStatus(exception)
+    if (transportStatus !== null) {
+      const message = exception instanceof Error ? exception.message : 'Request rejected'
+      return { statusCode: transportStatus, body: { code: statusToCode(transportStatus), message } }
+    }
+
     return {
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       body: { code: ERROR_CODES.INTERNAL, message: 'Internal server error' },
     }
   }
+}
+
+/** Reads the numeric HTTP status express/body-parser attach to their errors. */
+function extractTransportStatus(exception: unknown): number | null {
+  if (typeof exception !== 'object' || exception === null) return null
+  const candidate = exception as { status?: unknown; statusCode?: unknown }
+  const value =
+    typeof candidate.status === 'number'
+      ? candidate.status
+      : typeof candidate.statusCode === 'number'
+        ? candidate.statusCode
+        : null
+  return value !== null && value >= 400 && value < 600 ? value : null
 }
 
 function statusToCode(status: number): ErrorCode {
@@ -97,6 +119,8 @@ function statusToCode(status: number): ErrorCode {
       return ERROR_CODES.CONFLICT
     case HttpStatus.TOO_MANY_REQUESTS:
       return ERROR_CODES.TOO_MANY_REQUESTS
+    case HttpStatus.PAYLOAD_TOO_LARGE:
+      return ERROR_CODES.PAYLOAD_TOO_LARGE
     default:
       return ERROR_CODES.INTERNAL
   }

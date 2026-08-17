@@ -40,9 +40,10 @@ export function SiteFooter() {
         aria-hidden="true"
       />
 
-      {/* Giant watermark */}
-      <div className="pointer-events-none absolute top-1/2 left-1/2 flex w-full -translate-x-1/2 -translate-y-1/2 items-center justify-center opacity-[0.03] dark:opacity-[0.02]">
-        <span className="text-[16vw] leading-none font-black tracking-tighter whitespace-nowrap select-none">
+      {/* Giant watermark — same brand gradient as the logo wordmark. Light theme needs
+          a higher opacity for the mid-tone gradient to read on white; dark stays subtle. */}
+      <div className="pointer-events-none absolute top-1/2 left-1/2 flex w-full -translate-x-1/2 -translate-y-1/2 items-center justify-center opacity-[0.08] dark:opacity-[0.02]">
+        <span className="bg-gradient-to-r from-indigo-500 via-sky-500 to-fuchsia-500 bg-clip-text text-[16vw] leading-none font-black tracking-tighter whitespace-nowrap text-transparent select-none">
           CONTEXTGRAPH
         </span>
       </div>
@@ -93,7 +94,11 @@ export function SiteFooter() {
         <Reveal delay={300}>
           <div className="text-muted-foreground mt-14 flex flex-col gap-3 border-t pt-6 text-xs sm:flex-row sm:items-center sm:justify-between">
             <p>
-              © {new Date().getFullYear()} {APP.name} · {APP.subtitle}
+              © {new Date().getFullYear()}{' '}
+              <span className="bg-gradient-to-r from-indigo-500 via-sky-500 to-fuchsia-500 bg-clip-text font-semibold text-transparent">
+                {APP.name}
+              </span>{' '}
+              · {APP.subtitle}
             </p>
             <p className="font-mono">
               <span className="text-emerald-500" aria-hidden="true">

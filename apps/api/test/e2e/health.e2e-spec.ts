@@ -6,6 +6,12 @@ import { VersioningType, type INestApplication } from '@nestjs/common'
 import { AppModule } from '../../src/app.module'
 import { PrismaService } from '../../src/database/prisma.service'
 
+// The dev `.env` leaves PORT=0 (auto-pick); the config schema requires > 0
+// when the Test module constructs ConfigService, so normalize it before boot.
+if (process.env.PORT === undefined || process.env.PORT === '0') {
+  process.env.PORT = '3001'
+}
+
 /* E2E scaffold (supertest against the booted application). */
 describe('Health (e2e)', () => {
   let app: INestApplication
