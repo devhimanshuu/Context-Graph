@@ -190,7 +190,20 @@ shared across all pages.
   duplicated fetches.
 - No global renders: `useApiData` scopes updates to the consuming page.
 
-## 12. Accessibility
+## 12. Testing
+
+Unit and component tests run with **Vitest** + **React Testing Library** (`npm test`).
+
+- `src/**/*.test.ts` — pure unit tests (graph utilities, helpers).
+- `src/**/*.test.tsx` — component tests that render React components in jsdom, testing
+  rendering, user interaction, and state changes.
+- Playwright E2E tests (`npm run test:e2e`) verify page structure, navigation,
+  auth guards, and theme support across the public and authenticated surfaces.
+
+Key tested components: `PageHeader`, `EmptyState`, `StatCard`, `RuleExplanationPanel`
+(the "why included/excluded?" signature feature), plus graph utility functions.
+
+## 13. Accessibility
 
 - Semantic HTML (`nav`, `main`, `table`, `dl`), `aria-label`s on icon-only controls,
   `aria-pressed` on toggle chips, `aria-current` on active nav.
