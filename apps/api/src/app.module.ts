@@ -21,6 +21,7 @@ import { AuditModule } from './modules/audit/audit.module'
 import { ConfigurationModule } from './modules/configuration/configuration.module'
 import { HealthModule } from './modules/health/health.module'
 import { DemoModule } from './modules/demo/demo.module'
+import { IngestionModule } from './modules/ingestion/ingestion.module'
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard'
 import { AuthorizationGuard } from './common/guards/authorization.guard'
 import { OrganizationGuard } from './common/guards/organization.guard'
@@ -53,6 +54,7 @@ import { MetricsInterceptor } from './common/interceptors/metrics.interceptor'
     ConfigurationModule,
     HealthModule,
     DemoModule,
+    IngestionModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

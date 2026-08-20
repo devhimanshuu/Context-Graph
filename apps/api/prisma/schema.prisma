@@ -130,6 +130,65 @@ enum ContextRuleStatus {
   ARCHIVED
 }
 
+/// Lifecycle of an ingested document.
+enum IngestionDocumentStatus {
+  UPLOADED
+  VALIDATING
+  QUEUED
+  EXTRACTING
+  EXTRACTED
+  NORMALIZING
+  NORMALIZED
+  CHUNKING
+  CHUNKED
+  INDEXING
+  INDEXED
+  PROCESSING
+  READY
+  FAILED
+  ARCHIVED
+  STALE
+}
+
+/// How a document was introduced into the system.
+enum DocumentSourceType {
+  FILE
+  URL
+  TEXT
+  API
+}
+
+/// Who can see an ingested document.
+enum DocumentVisibility {
+  PRIVATE
+  ORGANIZATION
+  PUBLIC
+}
+
+/// Type of ingestion job (maps to pipeline stages).
+enum IngestionJobType {
+  VALIDATE
+  EXTRACT
+  NORMALIZE
+  CHUNK
+  METADATA
+  KNOWLEDGE
+  GRAPH
+  EMBED
+  INDEX
+  PUBLISH
+  REPROCESS
+}
+
+/// Lifecycle of an ingestion job.
+enum IngestionJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  RETRYING
+}
+
 // Multi-tenant core
 
 /// A tenant. All business data hangs off an Organization.
@@ -154,6 +213,10 @@ model Organization {
   contextRules       ContextRule[]
   auditLogs          AuditLog[]
   pipelineRuns       PipelineRun[]
+  documents          Document[]
+  documentVersions   DocumentVersion[]
+  documentChunks     DocumentChunk[]
+  ingestionJobs      IngestionJob[]
 
   @@index([status])
   @@index([industry])
@@ -179,6 +242,9 @@ model Workspace {
   permissionProfiles PermissionProfile[]
   auditLogs          AuditLog[]
   pipelineRuns       PipelineRun[]
+  documents          Document[]
+  documentChunks     DocumentChunk[]
+  ingestionJobs      IngestionJob[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -200,14 +266,15 @@ model Department {
   /// Stable, org-unique short identifier used in permission rules.
   code           String
   /// 0 = root; grows downward. Enables level-based filtering.
-  hierarchyLevel Int      @default(0)
-  metadata       Json     @default("{}")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  hierarchyLevel Int          @default(0)
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
   deletedAt      DateTime?
 
   users          User[]
   knowledgeNodes KnowledgeNode[]
+  documents      Document[]
 
   @@unique([organizationId, code])
   @@index([organizationId, hierarchyLevel])
@@ -219,32 +286,34 @@ model Department {
 /// A user within a tenant. Authentication arrives in a later phase; the
 /// profile fields below drive permission-aware filtering.
 model User {
-  id                   String              @id @default(uuid()) @db.Uuid
-  organizationId       String              @db.Uuid
-  organization         Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  departmentId         String?             @db.Uuid
-  department           Department?         @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  email                String
-  name                 String
-  role                 Role
-  permissionLevel      PermissionLevel     @default(READ)
-  complianceClearance  ComplianceClearance @default(STANDARD)
-  status               UserStatus          @default(INVITED)
+  id                  String              @id @default(uuid()) @db.Uuid
+  organizationId      String              @db.Uuid
+  organization        Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  departmentId        String?             @db.Uuid
+  department          Department?         @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  email               String
+  name                String
+  role                Role
+  permissionLevel     PermissionLevel     @default(READ)
+  complianceClearance ComplianceClearance @default(STANDARD)
+  status              UserStatus          @default(INVITED)
   /// Opaque provider handle filled in when Supabase Auth lands.
-  authProviderUserId   String?
-  metadata             Json                @default("{}")
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
-  deletedAt            DateTime?
+  authProviderUserId  String?
+  metadata            Json                @default("{}")
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  deletedAt           DateTime?
 
-  createdNodes       KnowledgeNode[]      @relation("KnowledgeNodeCreator")
-  updatedNodes       KnowledgeNode[]      @relation("KnowledgeNodeUpdater")
-  createdEdges       GraphEdge[]          @relation("GraphEdgeCreator")
-  createdRules       ContextRule[]        @relation("ContextRuleCreator")
+  createdNodes       KnowledgeNode[]               @relation("KnowledgeNodeCreator")
+  updatedNodes       KnowledgeNode[]               @relation("KnowledgeNodeUpdater")
+  createdEdges       GraphEdge[]                   @relation("GraphEdgeCreator")
+  createdRules       ContextRule[]                 @relation("ContextRuleCreator")
   profileAssignments PermissionProfileAssignment[]
   grantedAssignments PermissionProfileAssignment[] @relation("ProfileAssignmentGrantedBy")
   auditLogs          AuditLog[]
   pipelineRuns       PipelineRun[]
+  uploadedDocuments  Document[]                    @relation("DocumentUploader")
+  ingestionJobs      IngestionJob[]
 
   @@unique([organizationId, email])
   @@unique([organizationId, authProviderUserId])
@@ -268,37 +337,37 @@ model KnowledgeNode {
   departmentId   String?      @db.Uuid
   department     Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
-// NOTE (denormalization invariant): `organizationId` and `workspaceId` are both stored even though
-// workspaceId already implies an organization. This keeps the isolation prefix leftmost on every in...
+  // NOTE (denormalization invariant): `organizationId` and `workspaceId` are both stored even though
+  // workspaceId already implies an organization. This keeps the isolation prefix leftmost on every in...
 
-  title    String
-  content  String
-  type     NodeType
-  status   NodeStatus @default(DRAFT)
+  title             String
+  content           String
+  type              NodeType
+  status            NodeStatus @default(DRAFT)
   /// Retrieval importance 0-100; used to rank context assembly output.
-  importance Int @default(0)
+  importance        Int        @default(0)
   /// 0-100 confidence that this node is derivable from others; derived nodes
   /// are re-evaluated when their sources change.
-  derivabilityScore Int @default(0)
+  derivabilityScore Int        @default(0)
   /// Current content version (node versioning module, Phase 4).
-  version  Int        @default(1)
+  version           Int        @default(1)
   /// Validity window for temporal filtering (guidelines, regulations).
-  validFrom DateTime?
-  validTo   DateTime?
-  metadata  Json       @default("{}")
+  validFrom         DateTime?
+  validTo           DateTime?
+  metadata          Json       @default("{}")
 
-  createdById String?  @db.Uuid
-  createdBy   User?    @relation("KnowledgeNodeCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  updatedById String?  @db.Uuid
-  updatedBy   User?    @relation("KnowledgeNodeUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdById String? @db.Uuid
+  createdBy   User?   @relation("KnowledgeNodeCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById String? @db.Uuid
+  updatedBy   User?   @relation("KnowledgeNodeUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   complianceTags KnowledgeNodeComplianceTag[]
-  sourceEdges    GraphEdge[]                   @relation("GraphEdgeSource")
-  targetEdges    GraphEdge[]                   @relation("GraphEdgeTarget")
+  sourceEdges    GraphEdge[]                  @relation("GraphEdgeSource")
+  targetEdges    GraphEdge[]                  @relation("GraphEdgeTarget")
 
   // -- Organization isolation ---------------------------------------------
   @@index([organizationId, status])
@@ -318,8 +387,8 @@ model KnowledgeNode {
 // Normalized junction between a node and its compliance tags. A dedicated table (instead of a
 // Postgres array) gives us a real index on `tag` for compliance-filtered retrieval.
 model KnowledgeNodeComplianceTag {
-  knowledgeNodeId String         @db.Uuid
-  knowledgeNode   KnowledgeNode  @relation(fields: [knowledgeNodeId], references: [id], onDelete: Cascade)
+  knowledgeNodeId String        @db.Uuid
+  knowledgeNode   KnowledgeNode @relation(fields: [knowledgeNodeId], references: [id], onDelete: Cascade)
   tag             ComplianceTag
 
   @@id([knowledgeNodeId, tag])
@@ -353,6 +422,8 @@ model GraphEdge {
   // See the denormalization invariant note on KnowledgeNode: `organizationId`
   // here must equal `workspace.organizationId`; repositories enforce it.
 
+  // -- Uniqueness: no duplicate edges -------------------------------------
+  @@unique([workspaceId, sourceId, targetId, relationshipType])
   // -- BFS traversal: outgoing and incoming adjacency ----------------------
   @@index([workspaceId, sourceId])
   @@index([workspaceId, targetId])
@@ -361,8 +432,6 @@ model GraphEdge {
   @@index([workspaceId, relationshipType, validFrom, validTo])
   // -- Organization isolation ---------------------------------------------
   @@index([organizationId])
-  // -- Uniqueness: no duplicate edges -------------------------------------
-  @@unique([workspaceId, sourceId, targetId, relationshipType])
 }
 
 // Governance
@@ -387,8 +456,8 @@ model PermissionProfile {
 
   assignments PermissionProfileAssignment[]
 
-// Profile names are unique per organization (including org-wide profiles, where workspaceId is
-// null) so permission resolution never has to pick between same-named profiles.
+  // Profile names are unique per organization (including org-wide profiles, where workspaceId is
+  // null) so permission resolution never has to pick between same-named profiles.
   @@unique([organizationId, name])
   @@index([organizationId, isDefault])
   @@index([workspaceId])
@@ -515,17 +584,234 @@ model PipelineRun {
   /// Full run metrics (null for failed runs).
   metrics        Json?
   /// Tokens used by the final package (0 for failed runs).
-  tokensUsed     Int    @default(0)
+  tokensUsed     Int          @default(0)
   /// Ranked, budgeted package candidates (null for failed runs).
   candidates     Json?
   /// Inclusion/exclusion explanations (null for failed runs).
   exclusions     Json?
   /// Failure details: { code, message } (null for completed runs).
   error          Json?
-  createdAt      DateTime       @default(now())
+  createdAt      DateTime     @default(now())
 
+  @@unique([organizationId, idempotencyKey])
   @@index([organizationId, createdAt])
   @@index([organizationId, workspaceId, createdAt])
   @@index([requestId])
-  @@unique([organizationId, idempotencyKey])
 }
+
+// ---------------------------------------------------------------------------
+// Ingestion (Phase 13 — document upload & processing)
+// ---------------------------------------------------------------------------
+
+/// An ingested document — the top-level entity for the ingestion pipeline.
+/// Tracks lifecycle from upload through extraction, chunking, and indexing.
+model Document {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspaceId    String       @db.Uuid
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// Owning department (optional).
+  departmentId   String?      @db.Uuid
+  department     Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  /// User who uploaded the document.
+  uploadedById   String?      @db.Uuid
+  uploadedBy     User?        @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  /// Display title (derived from filename or metadata).
+  title              String
+  /// Original filename.
+  filename           String
+  /// MIME content type.
+  contentType        String
+  /// File size in bytes.
+  size               Int
+  /// SHA-256 checksum for deduplication and change detection.
+  checksum           String
+  /// Current version number (incremented on re-upload/reprocess).
+  version            Int                     @default(1)
+  /// Lifecycle status.
+  status             IngestionDocumentStatus @default(UPLOADED)
+  /// How the document was introduced.
+  sourceType         DocumentSourceType      @default(FILE)
+  /// Original URL (for URL-sourced documents).
+  sourceUrl          String?
+  /// Path in object storage (S3 or local).
+  storagePath        String?
+  /// Extracted metadata (author, page count, language, etc.).
+  metadata           Json                    @default("{}")
+  /// Processing metadata (durations, chunk count, errors, warnings).
+  processingMetadata Json                    @default("{}")
+  /// Tags for categorization.
+  tags               String[]                @default([])
+  /// Visibility scope.
+  visibility         DocumentVisibility      @default(ORGANIZATION)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // -- Relations --
+  versions      DocumentVersion[]
+  chunks        DocumentChunk[]
+  ingestionJobs IngestionJob[]
+
+  // Deduplication by checksum within organization
+  @@unique([organizationId, checksum])
+  // -- Indexes --
+  // Organization isolation
+  @@index([organizationId, status])
+  // Workspace scope + status
+  @@index([workspaceId, status])
+  // Department filtering
+  @@index([departmentId])
+  // Upload tracking
+  @@index([uploadedById])
+  // Recent documents
+  @@index([workspaceId, createdAt])
+}
+
+/// A version of a document. Created on each upload or reprocess.
+/// Retains enough metadata to determine what changed and which version is active.
+model DocumentVersion {
+  id             String       @id @default(uuid()) @db.Uuid
+  documentId     String       @db.Uuid
+  document       Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  /// Version number (1, 2, 3, ...).
+  versionNumber      Int
+  /// SHA-256 checksum of this version's content.
+  checksum           String
+  /// Path in object storage for this version.
+  storagePath        String?
+  /// File size in bytes.
+  size               Int
+  /// Status of this specific version.
+  status             IngestionDocumentStatus @default(UPLOADED)
+  /// Processing metadata for this version.
+  processingMetadata Json                    @default("{}")
+  /// Embedding model used (if indexed).
+  embeddingModel     String?
+  /// Embedding model version.
+  embeddingVersion   String?
+  /// Whether this version is the current active version.
+  isActive           Boolean                 @default(true)
+  /// Change summary (what changed from previous version).
+  changeSummary      String?
+
+  createdAt DateTime @default(now())
+
+  // -- Relations --
+  chunks DocumentChunk[]
+
+  // -- Indexes --
+  @@unique([documentId, versionNumber])
+  @@index([documentId, isActive])
+  @@index([organizationId])
+}
+
+/// A chunk of content extracted from a document.
+/// Each chunk is a unit of retrieval and embedding.
+model DocumentChunk {
+  id             String          @id @default(uuid()) @db.Uuid
+  documentId     String          @db.Uuid
+  document       Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  versionId      String          @db.Uuid
+  version        DocumentVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  organizationId String          @db.Uuid
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspaceId    String          @db.Uuid
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  /// Stable chunk identifier (deterministic from document + index + content).
+  chunkId     String  @unique
+  /// Zero-based index of this chunk within the document.
+  chunkIndex  Int
+  /// Total number of chunks in this document version.
+  totalChunks Int
+  /// The chunk's text content.
+  content     String
+  /// Start offset in the original document text.
+  startOffset Int
+  /// End offset in the original document text.
+  endOffset   Int
+  /// Section heading this chunk belongs to (if available).
+  section     String?
+  /// Subsection heading (if available).
+  subsection  String?
+  /// Page number (if available).
+  page        Int?
+  /// SHA-256 hash of the content for deduplication.
+  contentHash String
+  /// Additional metadata (title, filename, tags, etc.).
+  metadata    Json    @default("{}")
+
+  createdAt DateTime @default(now())
+
+  // -- Indexes --
+  // Document + version scope
+  @@index([documentId, versionId])
+  // Organization isolation
+  @@index([organizationId])
+  // Workspace scope
+  @@index([workspaceId])
+  // Content hash for deduplication
+  @@index([organizationId, contentHash])
+  // Chunk ordering within document
+  @@index([documentId, chunkIndex])
+}
+
+/// A job in the ingestion pipeline queue.
+/// Tracks individual processing steps (extract, chunk, embed, etc.).
+model IngestionJob {
+  id             String       @id @default(uuid()) @db.Uuid
+  documentId     String       @db.Uuid
+  document       Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspaceId    String       @db.Uuid
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// User who triggered the job.
+  userId         String       @db.Uuid
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Job type (pipeline stage).
+  type        IngestionJobType
+  /// Job status.
+  status      IngestionJobStatus @default(PENDING)
+  /// Number of attempts made.
+  attempts    Int                @default(0)
+  /// Maximum allowed attempts.
+  maxAttempts Int                @default(3)
+  /// Result metadata.
+  metadata    Json               @default("{}")
+  /// Error message (if failed).
+  error       String?
+
+  createdAt   DateTime  @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  // -- Indexes --
+  // Document scope
+  @@index([documentId, status])
+  // Organization scope
+  @@index([organizationId, status])
+  // Workspace scope
+  @@index([workspaceId, status])
+  // Job queue (pending jobs by type)
+  @@index([status, type, createdAt])
+  // User tracking
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Extend existing models with ingestion relations
+// ---------------------------------------------------------------------------
+
+// Note: Organization and Workspace already have the necessary relations
+// declared via the Document, DocumentChunk, and IngestionJob models above.
+// The Document model declares relations to Organization, Workspace, Department,
+// and User. No additional changes to existing models are needed.
