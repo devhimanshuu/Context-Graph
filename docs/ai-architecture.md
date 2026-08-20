@@ -14,23 +14,30 @@ The LLM must NEVER determine what information the user is authorized to access.
 flowchart TD
     A[User Request] --> B[Authentication]
     B --> C[ContextGraph Pipeline]
-    C --> D[Graph Traversal]
-    D --> E[Authorization]
-    E --> F[Deterministic Rules]
-    F --> G[Candidate Builder]
-    G --> H[Context Assembly]
-    H --> I[Context Budget]
-    I --> J[Prompt Builder]
-    J --> K[Model Gateway]
-    K --> L[LLM Provider]
-    L --> M[Response Validation]
-    M --> N[Citation Validation]
-    N --> O[AI Response]
+    C --> D[Hybrid Retrieval]
+    D --> D1[Graph Retrieval]
+    D --> D2[Semantic Retrieval]
+    D --> D3[Lexical Retrieval]
+    D1 --> E[RRF Fusion]
+    D2 --> E
+    D3 --> E
+    E --> F[Authorization]
+    F --> G[Deterministic Rules]
+    G --> H[Candidate Builder]
+    H --> I[Context Assembly]
+    I --> J[Context Budget]
+    J --> K[Prompt Builder]
+    K --> L[Model Gateway]
+    L --> M[LLM Provider]
+    M --> N[Response Validation]
+    N --> O[Citation Validation]
+    O --> P[AI Response]
 
     style A fill:#e1f5fe
     style C fill:#f3e5f5
-    style K fill:#e8f5e8
-    style O fill:#fff3e0
+    style D fill:#e8f5e8
+    style L fill:#fff3e0
+    style P fill:#e1f5fe
 ```
 
 ## Security Architecture
@@ -54,34 +61,61 @@ flowchart LR
 ## Module Structure
 
 ```
-apps/api/src/modules/ai/
-├── domain/
-│   ├── ai.types.ts          # Core domain types
-│   └── ai.interfaces.ts     # Service interfaces
-├── services/
-│   ├── ai.service.ts        # Main orchestrator
-│   ├── context-assembler.service.ts
-│   ├── context-budget-manager.service.ts
-│   ├── token-estimator.service.ts
-│   ├── context-compressor.service.ts
-│   ├── prompt-builder.service.ts
-│   ├── model-router.service.ts
-│   ├── citation-validator.service.ts
-│   ├── response-validator.service.ts
-│   ├── context-hasher.service.ts
-│   └── cost-calculator.service.ts
-├── adapters/
-│   ├── groq.adapter.ts      # Groq (OpenAI-compatible)
-│   ├── openrouter.adapter.ts # OpenRouter (multi-provider)
-│   └── ollama.adapter.ts    # Ollama (local)
-├── controllers/
-│   └── ai.controller.ts     # API endpoints
-├── dto/
-│   └── ai-chat-request.dto.ts
-└── ai.module.ts             # Module composition
+apps/api/src/modules/
+├── ai/                          # AI Context Layer
+│   ├── domain/
+│   │   ├── ai.types.ts          # Core domain types
+│   │   └── ai.interfaces.ts     # Service interfaces
+│   ├── services/
+│   │   ├── ai.service.ts        # Main orchestrator
+│   │   ├── context-assembler.service.ts
+│   │   ├── context-budget-manager.service.ts
+│   │   ├── token-estimator.service.ts
+│   │   ├── context-compressor.service.ts
+│   │   ├── prompt-builder.service.ts
+│   │   ├── model-router.service.ts
+│   │   ├── citation-validator.service.ts
+│   │   ├── response-validator.service.ts
+│   │   ├── context-hasher.service.ts
+│   │   └── cost-calculator.service.ts
+│   ├── adapters/
+│   │   ├── groq.adapter.ts      # Groq (OpenAI-compatible)
+│   │   ├── openrouter.adapter.ts # OpenRouter (multi-provider)
+│   │   └── ollama.adapter.ts    # Ollama (local)
+│   ├── controllers/
+│   │   └── ai.controller.ts     # API endpoints
+│   ├── dto/
+│   │   └── ai-chat-request.dto.ts
+│   └── ai.module.ts             # Module composition
+│
+└── retrieval/                   # Hybrid Retrieval System
+    ├── domain/
+    │   ├── retrieval.types.ts   # Retrieval domain types
+    │   └── retrieval.interfaces.ts # Service interfaces
+    ├── services/
+    │   ├── retrieval.service.ts # Main orchestrator
+    │   ├── vector-store.service.ts
+    │   ├── embedding.service.ts
+    │   ├── chunker.service.ts
+    │   └── indexing.service.ts
+    ├── adapters/
+    │   ├── graph-retriever.adapter.ts
+    │   ├── semantic-retriever.adapter.ts
+    │   ├── lexical-retriever.adapter.ts
+    │   └── hybrid-retriever.adapter.ts
+    ├── jobs/
+    │   ├── indexing.processor.ts
+    │   └── indexing-queue.service.ts
+    ├── controllers/
+    │   └── retrieval.controller.ts
+    ├── dto/
+    │   └── search-retrieval.dto.ts
+    └── retrieval.module.ts
 ```
 
-## API Endpoint
+## API Endpoints
+
+### AI Chat
 
 ```
 POST /api/v1/ai/chat
@@ -109,6 +143,92 @@ Response:
 - latencyMs: Response latency
 - requestId: Request identifier
 - pipelineVersion: Pipeline version
+
+### Streaming Chat
+
+```
+POST /api/v1/ai/chat/stream
+```
+
+Returns Server-Sent Events (SSE) with streaming response chunks.
+
+### Hybrid Retrieval
+
+```
+POST /api/v1/retrieval/search
+```
+
+Request:
+
+- userQuery: Search query
+- workspaceId: Workspace scope
+- entryNodeId: Starting node for graph traversal
+- mode: GRAPH_ONLY | SEMANTIC_ONLY | LEXICAL_ONLY | HYBRID
+- graphTopK, semanticTopK, lexicalTopK, finalTopK: Result limits
+- enableGraph, enableSemantic, enableLexical: Enable/disable methods
+- graphWeight, semanticWeight, lexicalWeight: Fusion weights
+- minSimilarity: Minimum semantic similarity threshold
+- nodeTypes, statuses, complianceTags, departments: Filters
+
+Response:
+
+- candidates: Retrieved candidates with explanations
+- mode: Retrieval mode used
+- totalResults: Total candidates
+- graphResults, semanticResults, lexicalResults: Source results
+- fusionMetadata: RRF configuration and stats
+- metrics: Performance metrics
+
+## Retrieval Architecture
+
+```mermaid
+flowchart TD
+    A[User Query] --> B[Authentication]
+    B --> C[Authorization Context]
+    C --> D[Hybrid Retrieval]
+
+    D --> E[Graph Retriever]
+    D --> F[Semantic Retriever]
+    D --> G[Lexical Retriever]
+
+    E --> H[RRF Fusion]
+    F --> H
+    G --> H
+
+    H --> I[Permission Filtering]
+    I --> J[Deterministic Rules]
+    J --> K[Candidate Ranking]
+
+    style A fill:#e1f5fe
+    style D fill:#f3e5f5
+    style H fill:#e8f5e8
+    style I fill:#fff3e0
+```
+
+### Reciprocal Rank Fusion (RRF)
+
+The hybrid retriever uses RRF to combine results:
+
+```
+score(d) = Σ w_i * 1/(k + rank_i(d))
+```
+
+Where:
+
+- `d` = document/candidate
+- `k` = constant (60, standard value from literature)
+- `w_i` = weight for retrieval method i
+- `rank_i(d)` = rank of document d in result list i (1-indexed)
+
+### Security Model
+
+**Critical**: Semantic retrieval MUST NEVER bypass:
+
+- Authentication
+- Organization isolation
+- Permissions
+- Compliance requirements
+- Deterministic rules
 
 ## Context Assembly Pipeline
 
@@ -218,6 +338,13 @@ AI_MAX_COST_PER_ORG=10.00
 
 # Local Models
 OLLAMA_BASE_URL=http://localhost:11434
+
+# Embedding Configuration
+EMBEDDING_PROVIDER=OPENAI
+EMBEDDING_MODEL=text-embedding-3-small
+EMBEDDING_DIMENSIONS=1536
+EMBEDDING_BATCH_SIZE=100
+OPENAI_API_KEY=your-key
 ```
 
 ## Testing Strategy
@@ -229,6 +356,7 @@ OLLAMA_BASE_URL=http://localhost:11434
 - TokenEstimator: provider-independent estimation
 - CitationValidator: citation detection and validation
 - ResponseValidator: structure and content validation
+- RetrievalService: authorization filtering, cross-tenant protection
 
 ### Security Tests
 
@@ -236,10 +364,12 @@ OLLAMA_BASE_URL=http://localhost:11434
 - Instruction hierarchy preservation
 - Authorization bypass attempts
 - Cross-tenant data leakage
+- Cross-tenant retrieval prevention
 
 ### Integration Tests
 
 - Full pipeline: ContextPackage → AI Response
+- Hybrid retrieval: Graph + Semantic + Lexical → RRF Fusion
 - Provider fallback scenarios
 - Cost budget enforcement
 
@@ -253,9 +383,15 @@ Tracked metrics:
 - Cost per request
 - Citation validation failures
 - Circuit breaker state changes
+- Retrieval query latency
+- Embedding generation latency
+- Vector search latency
+- Fusion latency
+- Cache hit rate
 
 ## Documentation
 
 - [Context Assembly](./context-assembly.md)
 - [Model Gateway](./model-gateway.md)
 - [AI Security](./ai-security.md)
+- [Retrieval Architecture](./retrieval-architecture.md)

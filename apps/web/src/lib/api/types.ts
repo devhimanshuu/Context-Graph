@@ -580,3 +580,136 @@ export type ComplianceTag =
   | 'RESTRICTED'
   | 'INTERNAL'
   | 'PUBLIC'
+
+// ---------------------------------------------------------------------------
+// Ingestion (Phase 13 — document upload & processing)
+// ---------------------------------------------------------------------------
+
+export type DocumentStatus =
+  | 'UPLOADED'
+  | 'VALIDATING'
+  | 'QUEUED'
+  | 'EXTRACTING'
+  | 'EXTRACTED'
+  | 'NORMALIZING'
+  | 'NORMALIZED'
+  | 'CHUNKING'
+  | 'CHUNKED'
+  | 'INDEXING'
+  | 'INDEXED'
+  | 'PROCESSING'
+  | 'READY'
+  | 'FAILED'
+  | 'ARCHIVED'
+  | 'STALE'
+
+export type DocumentSourceType = 'FILE' | 'URL' | 'TEXT' | 'API'
+
+export type DocumentVisibility = 'PRIVATE' | 'ORGANIZATION' | 'PUBLIC'
+
+export interface DocumentRecord {
+  id: string
+  organizationId: string
+  workspaceId: string
+  title: string
+  filename: string
+  contentType: string
+  size: number
+  checksum: string
+  version: number
+  status: DocumentStatus
+  sourceType: DocumentSourceType
+  sourceUrl?: string
+  storagePath?: string
+  metadata: DocumentMetadata
+  processingMetadata: ProcessingMetadata
+  departmentId: string | null
+  tags: string[]
+  visibility: DocumentVisibility
+  createdAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
+export interface DocumentMetadata {
+  author?: string
+  pageCount?: number
+  wordCount?: number
+  language?: string
+  createdAt?: string
+  modifiedAt?: string
+  customMetadata?: Record<string, unknown>
+}
+
+export interface ProcessingMetadata {
+  extractionDurationMs?: number
+  normalizationDurationMs?: number
+  chunkingDurationMs?: number
+  embeddingDurationMs?: number
+  indexingDurationMs?: number
+  totalDurationMs?: number
+  chunkCount?: number
+  nodeCount?: number
+  error?: string
+  warnings?: string[]
+}
+
+export interface DocumentChunk {
+  chunkId: string
+  documentId: string
+  documentVersion: number
+  organizationId: string
+  workspaceId: string
+  content: string
+  chunkIndex: number
+  totalChunks: number
+  startOffset: number
+  endOffset: number
+  section?: string
+  subsection?: string
+  page?: number
+  contentHash: string
+  metadata: ChunkMetadata
+  createdAt: string
+}
+
+export interface ChunkMetadata {
+  title: string
+  filename: string
+  contentType: string
+  departmentId: string | null
+  tags: string[]
+  visibility: DocumentVisibility
+}
+
+export interface IngestionJob {
+  jobId: string
+  documentId: string
+  organizationId: string
+  workspaceId: string
+  userId: string
+  type: IngestionJobType
+  status: IngestionJobStatus
+  attempts: number
+  maxAttempts: number
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+  error: string | null
+  metadata?: Record<string, unknown>
+}
+
+export type IngestionJobType =
+  | 'VALIDATE'
+  | 'EXTRACT'
+  | 'NORMALIZE'
+  | 'CHUNK'
+  | 'METADATA'
+  | 'KNOWLEDGE'
+  | 'GRAPH'
+  | 'EMBED'
+  | 'INDEX'
+  | 'PUBLISH'
+  | 'REPROCESS'
+
+export type IngestionJobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'RETRYING'

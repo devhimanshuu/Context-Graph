@@ -14,6 +14,8 @@ import type {
   AuditSummary,
   ContextRule,
   Department,
+  DocumentRecord,
+  DocumentChunk,
   EngineConfiguration,
   GraphEdge,
   KnowledgeNode,
@@ -131,4 +133,32 @@ export function useEngineConfiguration(): UseQueryResult<EngineConfiguration> {
 
 export function useRuleEngineDefinition(): UseQueryResult<RuleEngineDefinition> {
   return useApiQuery(['rule-engine-definition'], async (api) => api.ruleEngineDefinition())
+}
+
+// ---------------------------------------------------------------------------
+// Ingestion hooks
+// ---------------------------------------------------------------------------
+
+export function useDocuments(workspaceId: string | null): UseQueryResult<DocumentRecord[]> {
+  return useApiQuery(['documents', workspaceId ?? 'none'], async (api) =>
+    workspaceId === null ? [] : api.documents(workspaceId),
+  )
+}
+
+export function useDocument(documentId: string | null): UseQueryResult<DocumentRecord> {
+  return useApiQuery(['document', documentId ?? 'none'], async (api) => {
+    if (documentId === null) {
+      throw new Error('Missing document id')
+    }
+    return api.document(documentId)
+  })
+}
+
+export function useDocumentChunks(documentId: string | null): UseQueryResult<DocumentChunk[]> {
+  return useApiQuery(['document-chunks', documentId ?? 'none'], async (api) => {
+    if (documentId === null) {
+      return []
+    }
+    return api.documentChunks(documentId)
+  })
 }

@@ -23,6 +23,7 @@ export const ROUTES = {
   analytics: '/dashboard/analytics',
   configuration: '/dashboard/configuration',
   settings: '/dashboard/settings',
+  ingestion: '/dashboard/ingestion',
 } as const
 
 export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES]
@@ -52,4 +53,5 @@ export const ROUTE_TITLES: Readonly<Record<string, string>> = {
   [ROUTES.analytics]: 'Analytics',
   [ROUTES.configuration]: 'Configuration',
   [ROUTES.settings]: 'Settings',
+  [ROUTES.ingestion]: 'Ingestion',
 } as const

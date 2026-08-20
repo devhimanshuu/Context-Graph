@@ -15,6 +15,8 @@ import type {
   DebugReachabilityResult,
   DemoBootstrap,
   Department,
+  DocumentChunk,
+  DocumentRecord,
   EngineConfiguration,
   GraphEdge,
   KnowledgeNode,
@@ -325,5 +327,50 @@ export class ApiClient {
     body: { entryNodeId: string; maxDepth: number; strategy?: 'bfs' | 'weighted' },
   ): Promise<DebugReachabilityResult> {
     return this.post<DebugReachabilityResult>(`/debug/workspaces/${workspaceId}/reachability`, body)
+  }
+
+  // -- Ingestion (Phase 13) -----------------------------------------------------------------------
+  documents(workspaceId: string): Promise<DocumentRecord[]> {
+    return this.get<DocumentRecord[]>(
+      `/ingestion/documents?workspaceId=${encodeURIComponent(workspaceId)}`,
+    )
+  }
+
+  document(documentId: string): Promise<DocumentRecord> {
+    return this.get<DocumentRecord>(`/ingestion/documents/${documentId}`)
+  }
+
+  documentStatus(documentId: string): Promise<string> {
+    return this.get<string>(`/ingestion/documents/${documentId}/status`)
+  }
+
+  uploadDocument(input: {
+    filename: string
+    content: string
+    contentType: string
+    workspaceId: string
+    departmentId?: string
+    tags?: string[]
+    visibility?: 'PRIVATE' | 'ORGANIZATION' | 'PUBLIC'
+  }): Promise<DocumentRecord> {
+    return this.post<DocumentRecord>('/ingestion/documents', input)
+  }
+
+  reprocessDocument(documentId: string): Promise<DocumentRecord> {
+    return this.post<DocumentRecord>(`/ingestion/documents/${documentId}/reprocess`)
+  }
+
+  archiveDocument(documentId: string): Promise<{ success: boolean }> {
+    return this.post<{ success: boolean }>(`/ingestion/documents/${documentId}/archive`)
+  }
+
+  deleteDocument(documentId: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/ingestion/documents/${documentId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  documentChunks(documentId: string): Promise<DocumentChunk[]> {
+    return this.get<DocumentChunk[]>(`/ingestion/documents/${documentId}/chunks`)
   }
 }
