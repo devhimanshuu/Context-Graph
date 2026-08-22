@@ -91,6 +91,7 @@ import {
     IResponseValidator,
     IContextHasher,
     ICostCalculator,
+    'MODEL_GATEWAYS',
   ],
 })
 export class AiModule {}

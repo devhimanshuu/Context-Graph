@@ -114,9 +114,10 @@ import { DatabaseModule } from '../../database/database.module'
     },
 
     // Indexing
+    IndexingService,
     {
       provide: IIndexingService,
-      useClass: IndexingService,
+      useExisting: IndexingService,
     },
     {
       provide: IIndexingJobQueue,

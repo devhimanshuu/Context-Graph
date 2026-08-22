@@ -1,8 +1,8 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq'
-import { Logger } from '@nestjs/common'
+import { Inject, Logger } from '@nestjs/common'
 import { Job } from 'bullmq'
 import type { IndexingJob } from '../domain/retrieval.types'
-import { IndexingService } from '../services/indexing.service'
+import { IIndexingService } from '../domain/retrieval.interfaces'
 
 /**
  * Indexing Job Processor — processes indexing jobs from BullMQ queue.
@@ -28,7 +28,7 @@ import { IndexingService } from '../services/indexing.service'
 export class IndexingProcessor extends WorkerHost {
   private readonly logger = new Logger(IndexingProcessor.name)
 
-  constructor(private readonly indexingService: IndexingService) {
+  constructor(@Inject(IIndexingService) private readonly indexingService: IIndexingService) {
     super()
   }
 
@@ -45,8 +45,11 @@ export class IndexingProcessor extends WorkerHost {
     try {
       switch (type) {
         case 'INDEX':
+          await this.indexingService.indexNode(nodeId, organizationId, workspaceId)
+          break
+
         case 'REINDEX':
-          await this.indexingService.processIndexingJob(job.data)
+          await this.indexingService.reindexNode(nodeId, organizationId, workspaceId)
           break
 
         case 'DELETE':
