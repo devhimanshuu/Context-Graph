@@ -23,6 +23,7 @@ import { HealthModule } from './modules/health/health.module'
 import { DemoModule } from './modules/demo/demo.module'
 import { IngestionModule } from './modules/ingestion/ingestion.module'
 import { EvaluationModule } from './modules/evaluation/evaluation.module'
+import { AgentModule } from './modules/agent/agent.module'
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard'
 import { AuthorizationGuard } from './common/guards/authorization.guard'
 import { OrganizationGuard } from './common/guards/organization.guard'
@@ -30,6 +31,8 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter'
 import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 import { ExecutionTimeInterceptor } from './common/interceptors/execution-time.interceptor'
 import { MetricsInterceptor } from './common/interceptors/metrics.interceptor'
+import { BullModule } from '@nestjs/bullmq'
+import { ConfigService } from './config/config.service'
 
 /* Root module of the modular monolith. Global (APP_*) providers enforce cross-cutting concerns on every route: */
 @Module({
@@ -37,6 +40,20 @@ import { MetricsInterceptor } from './common/interceptors/metrics.interceptor'
     ConfigModule,
     DatabaseModule,
     CommonModule,
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const url = new URL(config.redisUrl)
+        return {
+          connection: {
+            host: url.hostname,
+            port: parseInt(url.port, 10) || 6379,
+            username: url.username || undefined,
+            password: url.password || undefined,
+          },
+        }
+      },
+    }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
     AuthModule,
     UsersModule,
@@ -57,6 +74,7 @@ import { MetricsInterceptor } from './common/interceptors/metrics.interceptor'
     DemoModule,
     IngestionModule,
     EvaluationModule,
+    AgentModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

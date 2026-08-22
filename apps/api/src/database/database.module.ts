@@ -4,7 +4,13 @@ import { PrismaService } from './prisma.service'
 /* Global database module. Exposes the Prisma connection pool once; every repository implementation */
 @Global()
 @Module({
-  providers: [PrismaService],
-  exports: [PrismaService],
+  providers: [
+    PrismaService,
+    {
+      provide: 'PRISMA',
+      useExisting: PrismaService,
+    },
+  ],
+  exports: [PrismaService, 'PRISMA'],
 })
 export class DatabaseModule {}

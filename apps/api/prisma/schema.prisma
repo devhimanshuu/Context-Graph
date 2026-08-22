@@ -217,6 +217,7 @@ model Organization {
   documentVersions   DocumentVersion[]
   documentChunks     DocumentChunk[]
   ingestionJobs      IngestionJob[]
+  agentExecutions    AgentExecution[]
 
   @@index([status])
   @@index([industry])
@@ -245,6 +246,7 @@ model Workspace {
   documents          Document[]
   documentChunks     DocumentChunk[]
   ingestionJobs      IngestionJob[]
+  agentExecutions    AgentExecution[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -314,6 +316,7 @@ model User {
   pipelineRuns       PipelineRun[]
   uploadedDocuments  Document[]                    @relation("DocumentUploader")
   ingestionJobs      IngestionJob[]
+  agentExecutions    AgentExecution[]
 
   @@unique([organizationId, email])
   @@unique([organizationId, authProviderUserId])
@@ -815,3 +818,215 @@ model IngestionJob {
 // declared via the Document, DocumentChunk, and IngestionJob models above.
 // The Document model declares relations to Organization, Workspace, Department,
 // and User. No additional changes to existing models are needed.
+
+// ===========================================================================
+// Phase 15 — Agent Orchestration
+// ===========================================================================
+
+/// Status of an agent execution.
+enum AgentExecutionStatusEnum {
+  PENDING
+  INITIALIZING
+  PLANNING
+  REQUESTING_CONTEXT
+  EXECUTING_TOOL
+  OBSERVING
+  VERIFYING
+  GENERATING_RESPONSE
+  AWAITING_APPROVAL
+  COMPLETED
+  FAILED
+  CANCELLED
+  TIMEOUT
+  POLICY_BLOCKED
+}
+
+/// Type of an agent plan step.
+enum AgentStepTypeEnum {
+  CONTEXT_REQUEST
+  TOOL_CALL
+  ANALYSIS
+  VERIFICATION
+  FINAL_RESPONSE
+}
+
+/// Status of an agent plan step.
+enum AgentStepStatusEnum {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  SKIPPED
+  BLOCKED
+}
+
+/// Status of a tool call.
+enum ToolCallStatusEnum {
+  PENDING
+  VALIDATING
+  AUTHORIZING
+  EXECUTING
+  COMPLETED
+  FAILED
+  DENIED
+  TIMEOUT
+  RATE_LIMITED
+}
+
+/// A single agent execution — tracks the full lifecycle of one user request.
+model AgentExecution {
+  id             String                 @id @default(uuid()) @db.Uuid
+  organizationId String                 @db.Uuid
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspaceId    String                 @db.Uuid
+  workspace      Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId         String                 @db.Uuid
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The original user request text.
+  userRequest    String
+  /// Current execution status.
+  status         AgentExecutionStatusEnum @default(PENDING)
+  /// Index of the current step (0-based).
+  currentStepIndex Int                  @default(0)
+  /// Total steps in the current plan.
+  totalSteps     Int                    @default(0)
+  /// How many planner iterations have occurred.
+  iterationCount Int                    @default(0)
+  /// Total tool calls made.
+  toolCallCount  Int                    @default(0)
+  /// Token accounting.
+  inputTokens    Int                    @default(0)
+  outputTokens   Int                    @default(0)
+  /// Estimated dollar cost.
+  estimatedCost  Float                  @default(0)
+  /// The final answer (if completed successfully).
+  finalResponse  String?
+  /// Error message (if failed).
+  errorMessage   String?
+  /// Flexible metadata JSON.
+  metadata       Json                   @default("{}")
+  /// Agent configuration snapshot (capabilities, limits).
+  config         Json                   @default("{}")
+
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  completedAt    DateTime?
+
+  /// Relations to child records.
+  steps          AgentStep[]
+  toolCalls      AgentToolCall[]
+  observations   AgentObservation[]
+  verifications  AgentVerification[]
+  approvals      AgentApprovalRequest[]
+
+  @@index([organizationId, status])
+  @@index([userId, status])
+  @@index([workspaceId, status])
+  @@index([createdAt])
+}
+
+/// A single step within an agent execution plan.
+model AgentStep {
+  id             String            @id @default(uuid()) @db.Uuid
+  executionId    String            @db.Uuid
+  execution      AgentExecution    @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  stepIndex      Int
+  stepType       AgentStepTypeEnum
+  purpose        String
+  toolName       String?
+  status         AgentStepStatusEnum @default(PENDING)
+  input          Json              @default("{}")
+  output         Json?
+  errorMessage   String?
+  durationMs     Int?
+  createdAt      DateTime          @default(now())
+  completedAt    DateTime?
+
+  toolCalls      AgentToolCall[]
+  observations   AgentObservation[]
+  verifications  AgentVerification[]
+
+  @@unique([executionId, stepIndex])
+  @@index([executionId])
+}
+
+/// A single tool call within a step.
+model AgentToolCall {
+  id             String            @id @default(uuid()) @db.Uuid
+  executionId    String            @db.Uuid
+  execution      AgentExecution    @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  stepId         String            @db.Uuid
+  step           AgentStep         @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  toolName       String
+  input          Json              @default("{}")
+  output         Json?
+  status         ToolCallStatusEnum @default(PENDING)
+  failureReason  String?
+  policyDecision String?
+  durationMs     Int?
+  createdAt      DateTime          @default(now())
+  completedAt    DateTime?
+
+  @@index([executionId])
+  @@index([stepId])
+  @@index([toolName])
+}
+
+/// A structured observation recorded after a tool call.
+model AgentObservation {
+  id             String            @id @default(uuid()) @db.Uuid
+  executionId    String            @db.Uuid
+  execution      AgentExecution    @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  stepId         String            @db.Uuid
+  step           AgentStep         @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  toolName       String
+  summary        String
+  data           Json              @default("{}")
+  createdAt      DateTime          @default(now())
+
+  @@index([executionId])
+  @@index([stepId])
+}
+
+/// A verification check performed on the agent's work.
+model AgentVerification {
+  id             String            @id @default(uuid()) @db.Uuid
+  executionId    String            @db.Uuid
+  execution      AgentExecution    @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  stepId         String            @db.Uuid
+  step           AgentStep         @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  checkType      String
+  status         String            @default("PASSED")
+  details        Json              @default("{}")
+  createdAt      DateTime          @default(now())
+
+  @@index([executionId])
+  @@index([stepId])
+}
+
+/// Human approval requests for high-risk actions.
+model AgentApprovalRequest {
+  id             String            @id @default(uuid()) @db.Uuid
+  executionId    String            @db.Uuid
+  execution      AgentExecution    @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  toolName       String            @default("")
+  toolInput      Json              @default("{}")
+  riskLevel      String
+  reason         String
+  status         String            @default("PENDING")
+  reviewerId     String?           @db.Uuid
+  reviewNote     String?
+  createdAt      DateTime          @default(now())
+  reviewedAt     DateTime?
+  expiresAt      DateTime?
+
+  @@index([executionId])
+  @@index([status])
+  @@index([reviewerId])
+}
