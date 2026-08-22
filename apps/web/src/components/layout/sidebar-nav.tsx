@@ -91,10 +91,17 @@ export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
                         'group flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm font-medium transition-colors',
                         active
                           ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                          : 'text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
+                          : item.starred
+                            ? 'text-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+                            : 'text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
                       )}
                     >
-                      <item.icon className="size-4 shrink-0" />
+                      <item.icon
+                        className={cn(
+                          'size-4 shrink-0',
+                          item.starred && !active && 'text-foreground/60',
+                        )}
+                      />
                       <span className="truncate">{item.title}</span>
                       {item.badge !== undefined && (
                         <span className="text-muted-foreground/70 ml-auto text-[10px] font-medium">

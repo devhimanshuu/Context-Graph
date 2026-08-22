@@ -713,3 +713,219 @@ export type IngestionJobType =
   | 'REPROCESS'
 
 export type IngestionJobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'RETRYING'
+
+// ---------------------------------------------------------------------------
+// Evaluation (Phase 14)
+// ---------------------------------------------------------------------------
+
+export type EvaluationRunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+export interface EvaluationMetrics {
+  retrieval: {
+    precisionAt5: number
+    precisionAt10: number
+    recallAt5: number
+    recallAt10: number
+    mrr: number
+    ndcgAt5: number
+    hitRateAt5: number
+  }
+  citation: {
+    citationPrecision: number
+    citationRecall: number
+    citationCorrectness: number
+    validCitations: number
+    invalidCitations: number
+    hallucinatedCitations: number
+  }
+  answer: {
+    relevanceScore: number
+    groundednessScore: number
+    hallucinationRate: number
+  }
+  security: {
+    authorizationViolations: number
+    tenantIsolationViolations: number
+    promptInjectionSuccessRate: number
+    totalSecurityTests: number
+    passedSecurityTests: number
+  }
+  latency: {
+    averageTotalLatencyMs: number
+    p95LatencyMs: number
+  }
+  cost: {
+    totalCostUsd: number
+    averageCostPerQuery: number
+    totalTokens: number
+  }
+}
+
+export interface EvaluationExperiment {
+  experimentId: string
+  name: string
+  description: string
+  datasetVersion: string
+  retrievalVersion: string
+  pipelineVersion: string
+  embeddingVersion: string
+  model: string
+  provider: string
+  configuration: Record<string, unknown>
+  createdAt: string
+}
+
+export interface EvaluationDataset {
+  datasetId: string
+  name: string
+  version: string
+  description: string
+  metadata: {
+    author: string
+    tags: string[]
+    totalCases: number
+    category: string
+  }
+  createdAt: string
+}
+
+export interface EvaluationRun {
+  runId: string
+  experimentId: string
+  status: EvaluationRunStatus
+  startedAt: string
+  completedAt?: string
+  totalCases: number
+  passedCases: number
+  failedCases: number
+  metrics: EvaluationMetrics | null
+  errors: { caseId: string; error: string }[]
+}
+
+export interface EvaluationBaseline {
+  baselineId: string
+  name: string
+  version: string
+  metrics: EvaluationMetrics | null
+  createdAt: string
+}
+
+export interface QualityGateResult {
+  passed: boolean
+  gates: {
+    gateName: string
+    metric: string
+    expected: number
+    actual: number
+    passed: boolean
+    severity: string
+  }[]
+  recommendations: string[]
+}
+
+// ---------------------------------------------------------------------------
+// AI Chat (Phase 14 AI layer)
+// ---------------------------------------------------------------------------
+
+export interface AiChatMessage {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  timestamp?: string
+}
+
+export interface AiChatRequest {
+  userQuery: string
+  entryNodeId: string
+  workspaceId: string
+  conversationId?: string
+  conversationHistory?: AiChatMessage[]
+  configuration?: Record<string, unknown>
+}
+
+export interface AiCitation {
+  nodeId: string
+  nodeTitle: string
+  score: number
+  claim: string
+  excerpt: string
+}
+
+export interface AiResponse {
+  answer: string
+  citations: AiCitation[]
+  contextSize: number
+  tokensUsed: number
+  model: string
+  provider: string
+  latencyMs: number
+  conversationId: string
+}
+
+// ---------------------------------------------------------------------------
+// AI Streaming
+// ---------------------------------------------------------------------------
+
+export interface AiStreamChunk {
+  type: 'chunk'
+  delta: string
+  index: number
+}
+
+export interface AiStreamDone {
+  type: 'done'
+  result: AiResponse
+}
+
+export interface AiStreamError {
+  type: 'error'
+  error: string
+}
+
+export type AiStreamEvent = AiStreamChunk | AiStreamDone | AiStreamError
+
+// ---------------------------------------------------------------------------
+// Retrieval (Phase 12 — hybrid search)
+// ---------------------------------------------------------------------------
+
+export type RetrievalMode = 'GRAPH' | 'SEMANTIC' | 'LEXICAL' | 'HYBRID'
+
+export interface RetrievalCandidate {
+  nodeId: string
+  title: string
+  content: string
+  score: number
+  rank: number
+  source: 'graph' | 'semantic' | 'lexical'
+  graphScore?: number
+  semanticScore?: number
+  lexicalScore?: number
+  metadata: Record<string, unknown>
+}
+
+export interface RetrievalMetrics {
+  totalCandidates: number
+  finalCandidates: number
+  graphCandidates: number
+  semanticCandidates: number
+  lexicalCandidates: number
+  retrievalTimeMs: number
+  fusionTimeMs: number
+  totalTimeMs: number
+}
+
+export interface RetrievalResult {
+  query: string
+  mode: RetrievalMode
+  candidates: RetrievalCandidate[]
+  metrics: RetrievalMetrics
+}
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+
+export interface WorkspaceSettings {
+  workspaceId: string
+  name: string
+  configuration: Record<string, unknown>
+}

@@ -21,6 +21,10 @@ export function getBreadcrumbItems(pathname: string): BreadcrumbItem[] {
 }
 
 function humanize(segment: string): string {
+  // UUIDs and long IDs get shortened
+  if (segment.length > 20 || /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(segment)) {
+    return `${segment.slice(0, 8)}…`
+  }
   return segment
     .split('-')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))

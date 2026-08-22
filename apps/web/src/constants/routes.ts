@@ -24,6 +24,10 @@ export const ROUTES = {
   configuration: '/dashboard/configuration',
   settings: '/dashboard/settings',
   ingestion: '/dashboard/ingestion',
+  evaluation: '/dashboard/evaluation',
+  ai: '/dashboard/ai',
+  retrieval: '/dashboard/retrieval',
+  agents: '/dashboard/agents',
 } as const
 
 export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES]
@@ -54,4 +58,8 @@ export const ROUTE_TITLES: Readonly<Record<string, string>> = {
   [ROUTES.configuration]: 'Configuration',
   [ROUTES.settings]: 'Settings',
   [ROUTES.ingestion]: 'Ingestion',
+  [ROUTES.evaluation]: 'Evaluation',
+  [ROUTES.ai]: 'AI Chat',
+  [ROUTES.retrieval]: 'Retrieval',
+  [ROUTES.agents]: 'Agents',
 } as const

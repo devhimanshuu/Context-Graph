@@ -3,6 +3,7 @@ import {
   BarChart3,
   Boxes,
   Building2,
+  BrainCircuit,
   FileClock,
   FileUp,
   GitBranch,
@@ -10,21 +11,25 @@ import {
   LayoutGrid,
   Library,
   ScrollText,
+  Search,
   Settings,
   ShieldCheck,
   SlidersHorizontal,
+  FlaskConical,
   Users,
   Waypoints,
+  Bot,
 } from 'lucide-react'
 import { ROUTES } from '@/constants'
 
-/* Shared navigation configuration. Single source of truth for sidebar and command-palette navigation. Adding a */
 export interface NavItem {
   title: string
   href: string
   icon: LucideIcon
   /** Short label shown for capabilities that ship in later phases. */
   badge?: string
+  /** Starred items get visual emphasis in the sidebar. */
+  starred?: boolean
 }
 
 export interface NavSection {
@@ -43,40 +48,53 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         title: 'Knowledge Graph',
         href: ROUTES.knowledgeGraph,
         icon: Waypoints,
-        badge: 'Live',
+        starred: true,
       },
-      { title: 'Knowledge', href: ROUTES.knowledge, icon: Library, badge: 'Live' },
-      { title: 'Ingestion', href: ROUTES.ingestion, icon: FileUp, badge: 'Phase 13' },
-      { title: 'Pipeline', href: ROUTES.pipeline, icon: GitBranch, badge: 'Live' },
-      { title: 'Contexts', href: ROUTES.contexts, icon: Boxes, badge: 'Phase 7' },
+      { title: 'Knowledge', href: ROUTES.knowledge, icon: Library, starred: true },
+      { title: 'Ingestion', href: ROUTES.ingestion, icon: FileUp },
+      {
+        title: 'Pipeline',
+        href: ROUTES.pipeline,
+        icon: GitBranch,
+        starred: true,
+      },
+      { title: 'Contexts', href: ROUTES.contexts, icon: Boxes },
+      { title: 'Retrieval', href: ROUTES.retrieval, icon: Search },
+      {
+        title: 'AI Chat',
+        href: ROUTES.ai,
+        icon: BrainCircuit,
+        starred: true,
+      },
     ],
   },
   {
     label: 'Governance',
     items: [
-      { title: 'Rules', href: ROUTES.rules, icon: ScrollText, badge: 'Live' },
-      { title: 'Permissions', href: ROUTES.permissions, icon: ShieldCheck, badge: 'Live' },
+      { title: 'Rules', href: ROUTES.rules, icon: ScrollText },
+      { title: 'Permissions', href: ROUTES.permissions, icon: ShieldCheck },
+      { title: 'Evaluation', href: ROUTES.evaluation, icon: FlaskConical },
     ],
   },
   {
-    label: 'Administration',
+    label: 'Operations',
     items: [
-      { title: 'Audit', href: ROUTES.audit, icon: FileClock, badge: 'Live' },
-      { title: 'Users', href: ROUTES.users, icon: Users, badge: 'Live' },
-      { title: 'Departments', href: ROUTES.departments, icon: Building2, badge: 'Live' },
+      {
+        title: 'Agents',
+        href: ROUTES.agents,
+        icon: Bot,
+        starred: true,
+      },
+      { title: 'Audit', href: ROUTES.audit, icon: FileClock },
+      { title: 'Users', href: ROUTES.users, icon: Users },
+      { title: 'Departments', href: ROUTES.departments, icon: Building2 },
       {
         title: 'Organization',
         href: ROUTES.organizations,
         icon: Landmark,
-        badge: 'Live',
       },
-      { title: 'Analytics', href: ROUTES.analytics, icon: BarChart3, badge: 'Live' },
-      {
-        title: 'Configuration',
-        href: ROUTES.configuration,
-        icon: SlidersHorizontal,
-        badge: 'Live',
-      },
+      { title: 'Analytics', href: ROUTES.analytics, icon: BarChart3 },
+      { title: 'Configuration', href: ROUTES.configuration, icon: SlidersHorizontal },
     ],
   },
   {

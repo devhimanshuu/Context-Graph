@@ -10,9 +10,11 @@ import {
   Trash2,
   Users as UsersIcon,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import {
   Dialog,
   DialogContent,
@@ -22,8 +24,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/dashboard/empty-state'
+import { ROLE_TINTED_COLORS } from '@/lib/tokens'
 import { PageHeader } from '@/components/dashboard/page-header'
-import { Skeleton } from '@/components/ui/skeleton'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
 import { useApi } from '@/components/dashboard/api-provider'
 import { useDepartments, useUsers } from '@/hooks/use-api-query'
 import type { UserRecord } from '@/lib/api/types'
@@ -31,15 +34,6 @@ import type { UserRecord } from '@/lib/api/types'
 const ROLES = ['ADMIN', 'HOD', 'EDITOR', 'VIEWER', 'QUALITY', 'AUDITOR'] as const
 const LEVELS = ['NONE', 'READ', 'WRITE', 'ADMIN'] as const
 const CLEARANCES = ['NONE', 'STANDARD', 'SENSITIVE', 'RESTRICTED', 'CRITICAL'] as const
-
-const ROLE_TONE: Record<string, string> = {
-  ADMIN: 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400',
-  HOD: 'border-violet-500/40 bg-violet-500/10 text-violet-600 dark:text-violet-400',
-  QUALITY: 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  AUDITOR: 'border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400',
-  EDITOR: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-  VIEWER: '',
-}
 
 interface UserFormState {
   name: string
@@ -121,13 +115,17 @@ export default function UsersPage() {
     }
   }
 
-  const remove = async (user: UserRecord) => {
-    if (client === null || !window.confirm(`Delete ${user.name}? This cannot be undone.`)) return
+  const [deletingUser, setDeletingUser] = React.useState<UserRecord | null>(null)
+
+  const remove = async () => {
+    if (client === null || deletingUser === null) return
     try {
-      await client.deleteUser(user.id)
+      await client.deleteUser(deletingUser.id)
+      toast.success(`Deleted ${deletingUser.name}`)
+      setDeletingUser(null)
       void users.refetch()
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Delete failed')
+      toast.error(error instanceof Error ? error.message : 'Delete failed')
     }
   }
 
@@ -157,7 +155,7 @@ export default function UsersPage() {
         </CardHeader>
         <CardContent>
           {users.isPending ? (
-            <Skeleton className="h-48 w-full" />
+            <TableSkeleton rows={5} columns={7} />
           ) : userList.length === 0 ? (
             <EmptyState
               icon={UsersIcon}
@@ -188,7 +186,7 @@ export default function UsersPage() {
                       <td className="py-2.5 pr-4">
                         <Badge
                           variant="outline"
-                          className={`text-[10px] font-medium ${ROLE_TONE[user.role] ?? ''}`}
+                          className={`text-[10px] font-medium ${ROLE_TINTED_COLORS[user.role] ?? ''}`}
                         >
                           {user.role}
                         </Badge>
@@ -221,7 +219,8 @@ export default function UsersPage() {
                               variant="ghost"
                               size="sm"
                               className="text-destructive"
-                              onClick={() => void remove(user)}
+                              onClick={() => setDeletingUser(user)}
+                              aria-label={`Delete ${user.name}`}
                             >
                               <Trash2 className="size-3.5" />
                             </Button>
@@ -350,6 +349,17 @@ export default function UsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deletingUser !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingUser(null)
+        }}
+        title="Delete user"
+        description={`Delete ${deletingUser?.name ?? ''}? This cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={() => void remove()}
+      />
     </div>
   )
 }

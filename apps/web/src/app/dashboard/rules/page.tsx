@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { RuleExplanationPanel } from '@/components/dashboard/rule-explanation-panel'
+import { STATUS_COLORS } from '@/lib/tokens'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useApi } from '@/components/dashboard/api-provider'
 import {
@@ -60,13 +61,6 @@ const STAGE_META: Record<string, { name: string; priority: number; description: 
     description:
       'Removes generic content a foundation model could derive; preserves organization-specific knowledge.',
   },
-}
-
-const STATUS_TONE: Record<string, string> = {
-  ACTIVE: 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400',
-  DRAFT: 'border-amber-500/40 text-amber-600 dark:text-amber-400',
-  DISABLED: '',
-  ARCHIVED: '',
 }
 
 export default function RulesPage() {
@@ -305,7 +299,7 @@ export default function RulesPage() {
                       <p className="font-medium">{rule.name}</p>
                       <Badge
                         variant="outline"
-                        className={`text-[10px] font-normal ${STATUS_TONE[rule.status] ?? ''}`}
+                        className={`text-[10px] font-normal ${STATUS_COLORS[rule.status] ?? ''}`}
                       >
                         {rule.status}
                       </Badge>

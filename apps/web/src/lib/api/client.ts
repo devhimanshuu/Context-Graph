@@ -1,6 +1,8 @@
 'use client'
 
 import type {
+  AiResponse,
+  AiStreamEvent,
   AnalyticsSummary,
   ApiResponse,
   AuditLogEntry,
@@ -18,6 +20,10 @@ import type {
   DocumentChunk,
   DocumentRecord,
   EngineConfiguration,
+  EvaluationBaseline,
+  EvaluationDataset,
+  EvaluationExperiment,
+  EvaluationRun,
   GraphEdge,
   KnowledgeNode,
   LoginResponse,
@@ -26,6 +32,7 @@ import type {
   PipelineMode,
   PipelineRunRecord,
   ReachabilityResult,
+  RetrievalResult,
   RuleEngineDefinition,
   RuleRunResponse,
   UpdateKnowledgeNodeInput,
@@ -372,5 +379,161 @@ export class ApiClient {
 
   documentChunks(documentId: string): Promise<DocumentChunk[]> {
     return this.get<DocumentChunk[]>(`/ingestion/documents/${documentId}/chunks`)
+  }
+
+  // -- Evaluation (Phase 14) --------------------------------------------------
+  evaluationExperiments(): Promise<EvaluationExperiment[]> {
+    return this.get<EvaluationExperiment[]>('/api/v1/evaluations/experiments')
+  }
+
+  evaluationDatasets(): Promise<EvaluationDataset[]> {
+    return this.get<EvaluationDataset[]>('/api/v1/evaluations/datasets')
+  }
+
+  evaluationRuns(experimentId?: string): Promise<EvaluationRun[]> {
+    const params =
+      experimentId !== undefined ? `?experimentId=${encodeURIComponent(experimentId)}` : ''
+    return this.get<EvaluationRun[]>(`/api/v1/evaluations/runs${params}`)
+  }
+
+  evaluationRun(runId: string): Promise<EvaluationRun> {
+    return this.get<EvaluationRun>(`/api/v1/evaluations/runs/${runId}`)
+  }
+
+  startEvaluationRun(experimentId: string, datasetId: string): Promise<EvaluationRun> {
+    return this.post<EvaluationRun>('/api/v1/evaluations/runs', { experimentId, datasetId })
+  }
+
+  cancelEvaluationRun(runId: string): Promise<void> {
+    return this.post<void>(`/api/v1/evaluations/runs/${runId}/cancel`)
+  }
+
+  evaluationBaselines(): Promise<EvaluationBaseline[]> {
+    return this.get<EvaluationBaseline[]>('/api/v1/evaluations/baselines')
+  }
+
+  // -- AI Chat ----------------------------------------------------------------
+  aiChat(request: {
+    userQuery: string
+    entryNodeId: string
+    workspaceId: string
+    conversationId?: string
+    conversationHistory?: { role: string; content: string; timestamp?: string }[]
+  }): Promise<AiResponse> {
+    return this.post<AiResponse>('/ai/chat', request)
+  }
+
+  /**
+   * Stream AI chat response via SSE (POST). Returns an async generator that
+   * yields parsed AiStreamEvent objects. The caller should iterate this
+   * generator and accumulate the delta tokens for real-time rendering.
+   *
+   * Usage:
+   *   for await (const event of client.aiChatStream(request)) {
+   *     if (event.type === 'chunk') appendText(event.delta)
+   *     if (event.type === 'done') setCitations(event.result.citations)
+   *   }
+   */
+  async *aiChatStream(request: {
+    userQuery: string
+    entryNodeId: string
+    workspaceId: string
+    conversationId?: string
+    conversationHistory?: { role: string; content: string; timestamp?: string }[]
+  }): AsyncGenerator<AiStreamEvent> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (this.token !== null) {
+      headers['Authorization'] = `Bearer ${this.token}`
+    }
+
+    const response = await fetch(`${this.baseUrl}/ai/chat/stream`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const body = (await response.json()) as ApiResponse<AiResponse>
+      if (!body.success) {
+        throw new ApiError(
+          (body as Extract<ApiResponse<AiResponse>, { success: false }>).error?.message ??
+            `Request failed (${response.status})`,
+          (body as Extract<ApiResponse<AiResponse>, { success: false }>).error?.code ??
+            'ERR_UNKNOWN',
+          undefined,
+          response.status,
+        )
+      }
+      throw new ApiError(
+        `Request failed (${response.status})`,
+        'ERR_UNKNOWN',
+        undefined,
+        response.status,
+      )
+    }
+
+    const reader = response.body?.getReader()
+    if (reader === undefined || reader === null) {
+      throw new ApiError('Response body is not readable', 'ERR_STREAM')
+    }
+
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+
+        // Parse SSE lines from the buffer
+        const lines = buffer.split('\n')
+        // Keep the last incomplete line in the buffer
+        buffer = lines.pop() ?? ''
+
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (trimmed === '' || trimmed.startsWith(':')) continue
+          if (!trimmed.startsWith('data: ')) continue
+
+          const jsonStr = trimmed.slice(6) // Remove 'data: ' prefix
+          try {
+            const event = JSON.parse(jsonStr) as AiStreamEvent
+            yield event
+          } catch {
+            // Skip malformed JSON lines
+          }
+        }
+      }
+
+      // Process any remaining buffer
+      if (buffer.trim().startsWith('data: ')) {
+        try {
+          const event = JSON.parse(buffer.trim().slice(6)) as AiStreamEvent
+          yield event
+        } catch {
+          // Skip
+        }
+      }
+    } finally {
+      reader.releaseLock()
+    }
+  }
+
+  // -- Retrieval (hybrid search) ----------------------------------------------
+  retrievalSearch(body: {
+    userQuery: string
+    workspaceId?: string
+    entryNodeId?: string
+    mode?: string
+    topK?: number
+    enableGraph?: boolean
+    enableSemantic?: boolean
+    enableLexical?: boolean
+  }): Promise<RetrievalResult> {
+    return this.post<RetrievalResult>('/api/v1/retrieval/search', body)
   }
 }

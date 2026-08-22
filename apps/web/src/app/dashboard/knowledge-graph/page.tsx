@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import { NODE_TYPE_COLORS, RELATIONSHIP_COLORS } from '@/lib/tokens'
 import { useApi } from '@/components/dashboard/api-provider'
 import { useGraphEdges, useKnowledgeNodes } from '@/hooks/use-api-query'
 import { GraphDebugPanel } from '@/components/dashboard/graph-debug-panel'
@@ -24,21 +25,7 @@ import type { GraphEdge, ReachabilityResult } from '@/lib/api/types'
 
 const NODE_TYPE_OPTIONS = ['FACT', 'CONSTRAINT', 'DECISION', 'ANTI_PATTERN'] as const
 
-const TYPE_CHIP_TONE: Record<string, string> = {
-  FACT: 'border-sky-500/40 text-sky-600 dark:text-sky-400',
-  CONSTRAINT: 'border-amber-500/40 text-amber-600 dark:text-amber-400',
-  DECISION: 'border-violet-500/40 text-violet-600 dark:text-violet-400',
-  ANTI_PATTERN: 'border-rose-500/40 text-rose-600 dark:text-rose-400',
-}
-
 const MAX_DEPTH_OPTIONS = [1, 2, 3, 4, 5] as const
-const RELATIONSHIP_TONE: Record<string, string> = {
-  SUPPORTS: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-  REQUIRES: 'border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400',
-  DERIVED_FROM: 'border-violet-500/40 bg-violet-500/10 text-violet-600 dark:text-violet-400',
-  SUPERSEDES: 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  CONTRADICTS: 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400',
-}
 
 export default function KnowledgeGraphPage() {
   const { client, bootstrap, status } = useApi()
@@ -206,7 +193,7 @@ export default function KnowledgeGraphPage() {
                       className={cn(
                         'rounded-md border px-2 py-1 text-[11px] font-medium transition-all',
                         active
-                          ? cn(TYPE_CHIP_TONE[type] ?? 'border-border', 'bg-background')
+                          ? cn(NODE_TYPE_COLORS[type] ?? 'border-border', 'bg-background')
                           : 'border-border text-muted-foreground/60 opacity-60 hover:opacity-100',
                       )}
                     >
@@ -339,7 +326,7 @@ function EdgeRow({
       <span className="font-medium">{nodeById.get(edge.targetId)?.title ?? edge.targetId}</span>
       <Badge
         variant="outline"
-        className={`text-[10px] font-normal ${RELATIONSHIP_TONE[edge.relationshipType] ?? ''}`}
+        className={`text-[10px] font-normal ${RELATIONSHIP_COLORS[edge.relationshipType] ?? ''}`}
       >
         {edge.relationshipType}
       </Badge>
