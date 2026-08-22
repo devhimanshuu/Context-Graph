@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
 import { useApi } from '@/components/dashboard/api-provider'
 import { useAnalyticsSummary, useKnowledgeNodes } from '@/hooks/use-api-query'
 import { COMPLIANCE_TAG_DESCRIPTIONS, COMPLIANCE_TAG_VALUES } from '@/constants/domain'
@@ -83,9 +84,9 @@ export default function AnalyticsPage() {
             Every audit action recorded for the organization, most frequent first.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent aria-live="polite">
           {summary.isPending ? (
-            <Skeleton className="h-48 w-full" />
+            <TableSkeleton rows={4} columns={2} showHeader={false} />
           ) : actions.length === 0 ? (
             <EmptyState
               icon={BarChart3}
@@ -132,7 +133,7 @@ export default function AnalyticsPage() {
         </CardHeader>
         <CardContent>
           {nodes.isPending ? (
-            <Skeleton className="h-64 w-full" />
+            <TableSkeleton rows={5} columns={2} showHeader={false} />
           ) : (nodes.data ?? []).length === 0 ? (
             <EmptyState
               icon={Tags}

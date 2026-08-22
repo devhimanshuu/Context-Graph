@@ -12,14 +12,8 @@ import { ContextPackageSummary } from '@/components/dashboard/context-package-su
 import { RuleExplanationPanel } from '@/components/dashboard/rule-explanation-panel'
 import { useKnowledgeNodes } from '@/hooks/use-api-query'
 import { cn } from '@/lib/utils'
-import type { CompressionHint, ContextPackage } from '@/lib/api/types'
-
-const HINT_STYLES: Record<CompressionHint, string> = {
-  FULL: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-  SUMMARY: 'border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400',
-  COMPRESSED: 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  REFERENCE_ONLY: 'border-zinc-500/40 bg-zinc-500/10 text-zinc-500 dark:text-zinc-400',
-}
+import { COMPRESSION_COLORS } from '@/lib/tokens'
+import type { ContextPackage } from '@/lib/api/types'
 
 export default function ContextsPage() {
   const { client, bootstrap, status } = useApi()
@@ -205,7 +199,7 @@ function ContextSections({ result }: { result: ContextPackage }) {
               variant="outline"
               className={cn(
                 'gap-1 px-1.5 py-0 text-[9px] font-semibold',
-                HINT_STYLES[candidate.compressionHint],
+                COMPRESSION_COLORS[candidate.compressionHint],
               )}
               title={`Compression hint: ${candidate.compressionHint}`}
             >

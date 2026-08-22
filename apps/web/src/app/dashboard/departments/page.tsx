@@ -11,8 +11,10 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
@@ -24,7 +26,7 @@ import {
 } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { PageHeader } from '@/components/dashboard/page-header'
-import { Skeleton } from '@/components/ui/skeleton'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
 import { useApi } from '@/components/dashboard/api-provider'
 import { useDepartments } from '@/hooks/use-api-query'
 import type { Department } from '@/lib/api/types'
@@ -112,13 +114,17 @@ export default function DepartmentsPage() {
     }
   }
 
-  const remove = async (department: Department) => {
-    if (client === null || !window.confirm(`Delete ${department.name}?`)) return
+  const [deletingDept, setDeletingDept] = React.useState<Department | null>(null)
+
+  const remove = async () => {
+    if (client === null || deletingDept === null) return
     try {
-      await client.deleteDepartment(department.id)
+      await client.deleteDepartment(deletingDept.id)
+      toast.success(`Deleted ${deletingDept.name}`)
+      setDeletingDept(null)
       void departments.refetch()
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Delete failed')
+      toast.error(error instanceof Error ? error.message : 'Delete failed')
     }
   }
 
@@ -171,7 +177,8 @@ export default function DepartmentsPage() {
                 variant="ghost"
                 size="sm"
                 className="text-destructive"
-                onClick={() => void remove(node)}
+                onClick={() => setDeletingDept(node)}
+                aria-label={`Delete ${node.name}`}
               >
                 <Trash2 className="size-3.5" />
               </Button>
@@ -210,7 +217,7 @@ export default function DepartmentsPage() {
         </CardHeader>
         <CardContent>
           {departments.isPending ? (
-            <Skeleton className="h-48 w-full" />
+            <TableSkeleton rows={4} columns={3} />
           ) : tree.length === 0 ? (
             <EmptyState
               icon={Building2}
@@ -295,6 +302,17 @@ export default function DepartmentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deletingDept !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingDept(null)
+        }}
+        title="Delete department"
+        description={`Delete ${deletingDept?.name ?? ''}? This cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={() => void remove()}
+      />
     </div>
   )
 }

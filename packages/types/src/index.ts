@@ -12,3 +12,4 @@ export * from "./domain/graph-edge";
 export * from "./domain/permission-profile";
 export * from "./domain/context-rule";
 export * from "./domain/audit-log";
+export * from "./domain/agent";

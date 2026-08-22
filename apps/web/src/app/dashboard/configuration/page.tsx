@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { PageHeader } from '@/components/dashboard/page-header'
-import { Skeleton } from '@/components/ui/skeleton'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
 import { useApi } from '@/components/dashboard/api-provider'
 import { useEngineConfiguration } from '@/hooks/use-api-query'
 import type { EngineConfiguration } from '@/lib/api/types'
@@ -55,7 +55,7 @@ export default function ConfigurationPage() {
       )}
 
       {config.isPending ? (
-        <Skeleton className="h-64 w-full" />
+        <TableSkeleton rows={3} columns={2} showHeader={false} />
       ) : config.data === null ? (
         <EmptyState
           icon={SlidersHorizontal}
@@ -63,7 +63,7 @@ export default function ConfigurationPage() {
           description="Connect to the API to inspect engine configuration."
         />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2" aria-live="polite">
           {(Object.keys(ENGINE_LABELS) as Array<keyof EngineConfiguration>).map((key) => (
             <Card key={key}>
               <CardHeader>

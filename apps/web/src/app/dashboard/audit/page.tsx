@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
 import { useApi } from '@/components/dashboard/api-provider'
 import { useAuditEntries, useAuditSummary } from '@/hooks/use-api-query'
 
@@ -104,6 +105,7 @@ export default function AuditPage() {
             <select
               value={entityType}
               onChange={(event) => setEntityType(event.target.value)}
+              aria-label="Filter by entity type"
               className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 flex h-8 items-center rounded-lg border px-2.5 text-sm outline-none"
             >
               <option value="">All entity types</option>
@@ -136,7 +138,7 @@ export default function AuditPage() {
           )}
 
           {entries.isPending ? (
-            <Skeleton className="h-48 w-full" />
+            <TableSkeleton rows={5} columns={3} />
           ) : (entries.data ?? []).length === 0 ? (
             <EmptyState
               icon={FileClock}
@@ -144,7 +146,7 @@ export default function AuditPage() {
               description="Actions such as knowledge-node create/update and permission changes are recorded here."
             />
           ) : (
-            <ul className="divide-y">
+            <ul className="divide-y" aria-live="polite">
               {(entries.data ?? []).map((entry) => (
                 <li key={entry.id} className="flex items-start gap-3 py-2.5 text-sm">
                   <Badge variant="outline" className="mt-0.5 shrink-0 font-mono text-[10px]">
