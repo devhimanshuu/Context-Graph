@@ -218,6 +218,8 @@ model Organization {
   documentChunks     DocumentChunk[]
   ingestionJobs      IngestionJob[]
   agentExecutions    AgentExecution[]
+  workflowDefinitions WorkflowDefinition[]
+  workflowExecutions  WorkflowExecutionModel[]
 
   @@index([status])
   @@index([industry])
@@ -247,6 +249,8 @@ model Workspace {
   documentChunks     DocumentChunk[]
   ingestionJobs      IngestionJob[]
   agentExecutions    AgentExecution[]
+  workflowDefinitions WorkflowDefinition[]
+  workflowExecutions  WorkflowExecutionModel[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -317,6 +321,8 @@ model User {
   uploadedDocuments  Document[]                    @relation("DocumentUploader")
   ingestionJobs      IngestionJob[]
   agentExecutions    AgentExecution[]
+  createdWorkflows   WorkflowDefinition[]
+  workflowExecutions  WorkflowExecutionModel[]
 
   @@unique([organizationId, email])
   @@unique([organizationId, authProviderUserId])
@@ -1029,4 +1035,211 @@ model AgentApprovalRequest {
   @@index([executionId])
   @@index([status])
   @@index([reviewerId])
+}
+
+// ===========================================================================
+// Phase 16 — Workflow Orchestration & Multi-Agent DAG Execution
+// ===========================================================================
+
+/// Lifecycle of a workflow definition.
+enum WorkflowDefinitionStatusEnum {
+  DRAFT
+  VALIDATED
+  PUBLISHED
+  ARCHIVED
+}
+
+/// Status of a workflow execution.
+enum WorkflowExecutionStatusEnum {
+  PENDING
+  RUNNING
+  WAITING
+  PAUSED
+  WAITING_FOR_APPROVAL
+  COMPLETED
+  FAILED
+  CANCELLED
+  TIMED_OUT
+  RECOVERY_REQUIRED
+}
+
+/// Status of a node execution within a workflow.
+enum NodeExecutionStatusEnum {
+  PENDING
+  READY
+  RUNNING
+  WAITING
+  COMPLETED
+  FAILED
+  SKIPPED
+  CANCELLED
+}
+
+/// A workflow definition — versioned, immutable once published.
+model WorkflowDefinition {
+  id             String                     @id @default(uuid()) @db.Uuid
+  organizationId String                     @db.Uuid
+  organization   Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspaceId    String?                    @db.Uuid
+  workspace      Workspace?                 @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  createdBy      String?                    @db.Uuid
+  creator        User?                      @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  name           String
+  description    String?
+  version        Int                        @default(1)
+  status         WorkflowDefinitionStatusEnum @default(DRAFT)
+
+  /// DAG nodes stored as JSON array.
+  nodes          Json                       @default("[]")
+  /// DAG edges stored as JSON array.
+  edges          Json                       @default("[]")
+  /// Input schema for workflow validation.
+  inputSchema    Json                       @default("{}")
+  /// Output schema for workflow validation.
+  outputSchema   Json                       @default("{}")
+  /// Execution policy (limits, budgets).
+  executionPolicy Json                      @default("{}")
+  /// Metadata (tags, description, etc.).
+  metadata       Json                       @default("{}")
+
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+  deletedAt      DateTime?
+
+  executions     WorkflowExecutionModel[]
+
+  @@unique([organizationId, name, version])
+  @@index([organizationId, status])
+  @@index([organizationId, createdAt])
+}
+
+/// A running or completed workflow execution.
+model WorkflowExecutionModel {
+  id               String                    @id @default(uuid()) @db.Uuid
+  organizationId   String                    @db.Uuid
+  organization     Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspaceId      String?                   @db.Uuid
+  workspace        Workspace?                @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  workflowId       String                    @db.Uuid
+  workflow         WorkflowDefinition        @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  userId           String                    @db.Uuid
+  user             User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  workflowVersion  Int
+  status           WorkflowExecutionStatusEnum @default(PENDING)
+
+  /// Original input.
+  input            Json                      @default("{}")
+  /// Final output (populated on completion).
+  output           Json?
+
+  /// Currently executing nodes.
+  currentNodes     Json                      @default("[]")
+  /// Successfully completed node IDs.
+  completedNodes   Json                      @default("[]")
+  /// Failed node IDs.
+  failedNodes      Json                      @default("[]")
+
+  /// Error message if failed.
+  error            String?
+  /// Token usage tracking.
+  tokenUsage       Int                       @default(0)
+  /// Estimated cost.
+  estimatedCost    Float                     @default(0)
+  /// Agent calls count.
+  agentCallCount   Int                       @default(0)
+  /// Tool calls count.
+  toolCallCount    Int                       @default(0)
+
+  startedAt        DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  nodeExecutions   NodeExecutionModel[]
+  events           WorkflowEventModel[]
+  checkpoints      WorkflowCheckpointModel[]
+  approvals        WorkflowApprovalModel[]
+
+  @@index([organizationId, status])
+  @@index([workflowId, status])
+  @@index([userId, status])
+  @@index([createdAt])
+}
+
+/// Execution of a single node within a workflow execution.
+model NodeExecutionModel {
+  id               String                   @id @default(uuid()) @db.Uuid
+  executionId      String                   @db.Uuid
+  execution        WorkflowExecutionModel   @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  nodeId           String                   @db.Uuid
+  nodeName         String
+  nodeType         String
+  status           NodeExecutionStatusEnum  @default(PENDING)
+  attempt          Int                      @default(1)
+  maxAttempts      Int                      @default(3)
+  input            Json                     @default("{}")
+  output           Json?
+  error            String?
+  agentExecutionId String?                  @db.Uuid
+  startedAt        DateTime?
+  completedAt      DateTime?
+  durationMs       Int?
+  createdAt        DateTime                 @default(now())
+
+  @@index([executionId])
+  @@index([executionId, nodeId])
+  @@index([executionId, status])
+}
+
+/// Domain events emitted during workflow execution.
+model WorkflowEventModel {
+  id               String                   @id @default(uuid()) @db.Uuid
+  executionId      String                   @db.Uuid
+  execution        WorkflowExecutionModel   @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  nodeId           String?
+  eventType        String
+  metadata         Json                     @default("{}")
+  timestamp        DateTime                 @default(now())
+
+  @@index([executionId, timestamp])
+  @@index([executionId, eventType])
+}
+
+/// Durable checkpoint for workflow recovery.
+model WorkflowCheckpointModel {
+  id               String                   @id @default(uuid()) @db.Uuid
+  executionId      String                   @db.Uuid
+  execution        WorkflowExecutionModel   @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  sequence         Int
+  workflowVersion  Int
+  stateHash        String
+  stateSnapshot    Json
+  createdAt        DateTime                 @default(now())
+
+  @@unique([executionId, sequence])
+  @@index([executionId])
+}
+
+/// Human approval request for workflow nodes.
+model WorkflowApprovalModel {
+  id               String                   @id @default(uuid()) @db.Uuid
+  executionId      String                   @db.Uuid
+  execution        WorkflowExecutionModel   @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  nodeExecutionId  String                   @db.Uuid
+  nodeId           String                   @db.Uuid
+  requestedAction  String
+  riskLevel        String
+  requestedBy      String                   @db.Uuid
+  status           String                   @default("PENDING")
+  approverId       String?                  @db.Uuid
+  approverNote     String?
+  createdAt        DateTime                 @default(now())
+  resolvedAt       DateTime?
+  expiresAt        DateTime?
+
+  @@index([executionId])
+  @@index([status])
+  @@index([approverId])
 }
