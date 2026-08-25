@@ -56,3 +56,15 @@ export const replayRunInputSchema = z.object({
 })
 
 export type ReplayRunInput = z.infer<typeof replayRunInputSchema>
+
+// ─── check_action ────────────────────────────────────────────────────────────
+
+export const actionCheckInputSchema = z.object({
+  action: z.string().min(1, 'Action is required').max(100, 'Action too long'),
+  targetType: z.string().min(1, 'Target type is required').max(100, 'Target type too long'),
+  targetId: uuidSchema.nullable().optional().default(null),
+  parameters: z.record(z.string(), z.unknown()).optional().default({}),
+  purpose: z.string().max(1_000, 'Purpose too long').nullable().optional().default(null),
+})
+
+export type ActionCheckInput = z.infer<typeof actionCheckInputSchema>
