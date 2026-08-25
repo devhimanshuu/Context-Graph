@@ -14,3 +14,4 @@ export * from "./domain/context-rule";
 export * from "./domain/audit-log";
 export * from "./domain/agent";
 export * from "./domain/workflow";
+export * from "./domain/governance";

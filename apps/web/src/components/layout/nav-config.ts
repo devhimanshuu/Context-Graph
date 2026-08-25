@@ -19,6 +19,11 @@ import {
   Users,
   Waypoints,
   Bot,
+  Scale,
+  Cpu,
+  DollarSign,
+  UserCog,
+  Shield,
 } from 'lucide-react'
 import { ROUTES } from '@/constants'
 
@@ -71,6 +76,12 @@ export const NAV_SECTIONS: readonly NavSection[] = [
   {
     label: 'Governance',
     items: [
+      { title: 'Governance', href: ROUTES.governance, icon: Scale, starred: true },
+      { title: 'Policies', href: ROUTES.governancePolicies, icon: Shield },
+      { title: 'Models', href: ROUTES.governanceModels, icon: Cpu },
+      { title: 'Budgets', href: ROUTES.governanceBudgets, icon: DollarSign },
+      { title: 'Teams', href: ROUTES.governanceTeams, icon: UserCog },
+      { title: 'Roles', href: ROUTES.governanceRoles, icon: ShieldCheck },
       { title: 'Rules', href: ROUTES.rules, icon: ScrollText },
       { title: 'Permissions', href: ROUTES.permissions, icon: ShieldCheck },
       { title: 'Evaluation', href: ROUTES.evaluation, icon: FlaskConical },

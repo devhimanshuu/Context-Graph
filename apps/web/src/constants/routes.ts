@@ -28,6 +28,12 @@ export const ROUTES = {
   ai: '/dashboard/ai',
   retrieval: '/dashboard/retrieval',
   agents: '/dashboard/agents',
+  governance: '/dashboard/governance',
+  governancePolicies: '/dashboard/governance/policies',
+  governanceModels: '/dashboard/governance/models',
+  governanceBudgets: '/dashboard/governance/budgets',
+  governanceTeams: '/dashboard/governance/teams',
+  governanceRoles: '/dashboard/governance/roles',
 } as const
 
 export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES]
@@ -62,4 +68,10 @@ export const ROUTE_TITLES: Readonly<Record<string, string>> = {
   [ROUTES.ai]: 'AI Chat',
   [ROUTES.retrieval]: 'Retrieval',
   [ROUTES.agents]: 'Agents',
+  [ROUTES.governance]: 'Governance',
+  [ROUTES.governancePolicies]: 'Policies',
+  [ROUTES.governanceModels]: 'Model Governance',
+  [ROUTES.governanceBudgets]: 'Budgets',
+  [ROUTES.governanceTeams]: 'Teams',
+  [ROUTES.governanceRoles]: 'Roles',
 } as const

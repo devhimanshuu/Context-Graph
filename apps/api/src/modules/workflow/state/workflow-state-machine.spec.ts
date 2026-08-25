@@ -1,5 +1,4 @@
-/* Unit tests for Workflow State Machine — validates transition rules. */
-
+import { describe, it, expect } from 'vitest'
 import { WorkflowStateMachine } from './workflow-state-machine'
 
 describe('WorkflowStateMachine', () => {

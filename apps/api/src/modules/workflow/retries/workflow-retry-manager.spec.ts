@@ -1,5 +1,6 @@
 /* Unit tests for Workflow Retry Manager — validates retry logic and backoff. */
 
+import { describe, it, expect } from 'vitest'
 import { WorkflowRetryManager } from './workflow-retry-manager'
 import { type RetryPolicy } from '@contextgraph/types'
 

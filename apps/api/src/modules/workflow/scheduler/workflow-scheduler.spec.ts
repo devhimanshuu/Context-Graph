@@ -1,5 +1,6 @@
 /* Unit tests for Workflow Scheduler — validates ready node detection and completion logic. */
 
+import { describe, it, expect } from 'vitest'
 import { WorkflowScheduler } from './workflow-scheduler'
 import { type WorkflowNode, type WorkflowEdge, type WorkflowExecution } from '@contextgraph/types'
 

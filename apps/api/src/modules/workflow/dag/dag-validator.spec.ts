@@ -1,5 +1,6 @@
 /* Unit tests for DAG Validator — validates cycle detection, entry/terminal nodes, dependency checking. */
 
+import { describe, it, expect } from 'vitest'
 import { DagValidator } from './dag-validator'
 import { type WorkflowNode, type WorkflowEdge } from '@contextgraph/types'
 
