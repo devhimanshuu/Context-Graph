@@ -11,6 +11,7 @@ import { IMcpTool } from '../domain/mcp.interfaces'
 import { IPipelineRunService } from '../../pipeline/runs/pipeline-run.service'
 import { getRunInputSchema, type GetRunInput } from '../schemas/mcp-tool-schemas'
 import { toMcpError } from '../errors/mcp-errors'
+import { invalidInputResult, mcpErrorResult, resultMetadata } from './tool-helpers'
 import type { McpToolDefinition } from '@contextgraph/types'
 
 @Injectable()
@@ -43,18 +44,7 @@ export class GetRunTool implements IMcpTool {
     try {
       validated = getRunInputSchema.parse(input)
     } catch (error) {
-      return {
-        toolCallId: requestId,
-        toolName: this.definition.name,
-        status: 'invalid_input' as const,
-        error: `Input validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        metadata: {
-          executionTimeMs: 0,
-          organizationId: session.organizationId,
-          principalId: session.principalId,
-          timestamp: new Date().toISOString(),
-        },
-      }
+      return invalidInputResult(this.definition.name, session, requestId, error)
     }
 
     try {
@@ -76,44 +66,53 @@ export class GetRunTool implements IMcpTool {
           strategy: run.strategy,
           evaluatedAt: run.evaluatedAt,
           createdAt: run.createdAt,
-          stageSummary: (run.trace as Array<Record<string, unknown>>).map((stage) => ({
-            stageName: stage.stageName ?? stage.stageId,
-            status: stage.status,
-            durationMs: stage.durationMs,
-            outputCount: stage.outputCount,
-          })),
-          metrics: run.metrics
-            ? {
-                totalDurationMs: (run.metrics as Record<string, unknown>).totalDurationMs,
-                reachableNodes: (run.metrics as Record<string, unknown>).reachableNodes,
-                includedCandidates: (run.metrics as Record<string, unknown>).includedCandidates,
-                tokensUsed: run.tokensUsed,
-              }
-            : null,
+          stageSummary: parseStageSummary(run.trace),
+          metrics:
+            run.metrics !== null && typeof run.metrics === 'object'
+              ? {
+                  totalDurationMs: (run.metrics as Record<string, unknown>).totalDurationMs,
+                  reachableNodes: (run.metrics as Record<string, unknown>).reachableNodes,
+                  includedCandidates: (run.metrics as Record<string, unknown>).includedCandidates,
+                  tokensUsed: run.tokensUsed,
+                }
+              : null,
           error: run.error,
         },
-        metadata: {
-          executionTimeMs,
-          organizationId: session.organizationId,
-          principalId: session.principalId,
-          pipelineRunId: run.requestId,
-          timestamp: new Date().toISOString(),
-        },
+        metadata: resultMetadata(session, executionTimeMs, run.requestId),
       }
     } catch (error) {
       const mcpError = toMcpError(error)
-      return {
-        toolCallId: requestId,
-        toolName: this.definition.name,
-        status: mcpError.code,
-        error: mcpError.message,
-        metadata: {
-          executionTimeMs: 0,
-          organizationId: session.organizationId,
-          principalId: session.principalId,
-          timestamp: new Date().toISOString(),
-        },
-      }
+      return mcpErrorResult(
+        this.definition.name,
+        session,
+        requestId,
+        mcpError.code,
+        mcpError.message,
+      )
     }
   }
+}
+
+interface ParsedStage {
+  readonly stageName: string
+  readonly status: string
+  readonly durationMs: number | null
+  readonly outputCount: number | null
+}
+
+/** Defensively extract a stage summary from an untrusted trace payload. */
+function parseStageSummary(trace: unknown): ParsedStage[] {
+  if (!Array.isArray(trace)) return []
+  return trace.flatMap((stage) => {
+    if (stage === null || typeof stage !== 'object') return []
+    const s = stage as Record<string, unknown>
+    return [
+      {
+        stageName: String(s.stageName ?? s.stageId ?? 'unknown'),
+        status: String(s.status ?? 'unknown'),
+        durationMs: typeof s.durationMs === 'number' ? s.durationMs : null,
+        outputCount: typeof s.outputCount === 'number' ? s.outputCount : null,
+      },
+    ]
+  })
 }

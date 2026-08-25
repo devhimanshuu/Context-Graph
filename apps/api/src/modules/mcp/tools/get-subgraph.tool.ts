@@ -8,13 +8,18 @@ Security: structurally reachable but unauthorized nodes are filtered out.
 The agent cannot access graph nodes merely because they are connected. */
 
 import { Inject, Injectable } from '@nestjs/common'
-import type { McpSession, McpToolResult } from '@contextgraph/types'
+import type {
+  AuthenticatedUser,
+  McpSession,
+  McpToolDefinition,
+  McpToolResult,
+} from '@contextgraph/types'
 import { McpCapability as Cap } from '@contextgraph/types'
 import { IMcpTool } from '../domain/mcp.interfaces'
 import { IGraphService } from '../../graph/graph.service'
 import { getSubgraphInputSchema, type GetSubgraphInput } from '../schemas/mcp-tool-schemas'
 import { toMcpError } from '../errors/mcp-errors'
-import type { McpToolDefinition, AuthenticatedUser } from '@contextgraph/types'
+import { buildAgentUser, invalidInputResult, mcpErrorResult, resultMetadata } from './tool-helpers'
 
 @Injectable()
 export class GetSubgraphTool implements IMcpTool {
@@ -54,30 +59,10 @@ export class GetSubgraphTool implements IMcpTool {
     try {
       validated = getSubgraphInputSchema.parse(input)
     } catch (error) {
-      return {
-        toolCallId: requestId,
-        toolName: this.definition.name,
-        status: 'invalid_input' as const,
-        error: `Input validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        metadata: {
-          executionTimeMs: 0,
-          organizationId: session.organizationId,
-          principalId: session.principalId,
-          timestamp: new Date().toISOString(),
-        },
-      }
+      return invalidInputResult(this.definition.name, session, requestId, error)
     }
 
-    const user: AuthenticatedUser = {
-      id: session.principalId,
-      organizationId: session.organizationId,
-      departmentId: null,
-      email: 'mcp-agent@contextgraph.local',
-      name: `MCP Agent (${session.sessionId.slice(0, 8)})`,
-      role: 'VIEWER',
-      permissionLevel: 'READ',
-      complianceClearance: 'STANDARD',
-    }
+    const user: AuthenticatedUser = buildAgentUser(session)
 
     try {
       const startTime = performance.now()
@@ -123,27 +108,17 @@ export class GetSubgraphTool implements IMcpTool {
             filteredNodes: result.filteredNodeCount,
           },
         },
-        metadata: {
-          executionTimeMs,
-          organizationId: session.organizationId,
-          principalId: session.principalId,
-          timestamp: new Date().toISOString(),
-        },
+        metadata: resultMetadata(session, executionTimeMs),
       }
     } catch (error) {
       const mcpError = toMcpError(error)
-      return {
-        toolCallId: requestId,
-        toolName: this.definition.name,
-        status: mcpError.code,
-        error: mcpError.message,
-        metadata: {
-          executionTimeMs: 0,
-          organizationId: session.organizationId,
-          principalId: session.principalId,
-          timestamp: new Date().toISOString(),
-        },
-      }
+      return mcpErrorResult(
+        this.definition.name,
+        session,
+        requestId,
+        mcpError.code,
+        mcpError.message,
+      )
     }
   }
 }

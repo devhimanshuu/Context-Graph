@@ -14,6 +14,7 @@ The handler NEVER contains business logic — it delegates to tools. */
 
 import { Inject, Injectable } from '@nestjs/common'
 import type { McpSession } from '@contextgraph/types'
+import { McpToolResultStatus } from '@contextgraph/types'
 import { ILogger, LOGGER } from '../../../common/interfaces/logger.interface'
 import {
   IMcpAuthenticator,
@@ -24,8 +25,9 @@ import {
 } from '../domain/mcp.interfaces'
 import { uuid } from '../../../common/utils/uuid'
 
-/** The four DI tokens for MCP infrastructure services. */
+/** The five DI tokens for MCP infrastructure services. */
 export const MCP_AUTHENTICATOR = Symbol('IMcpAuthenticator')
+export const MCP_TOOL_REGISTRY = Symbol('IMcpToolRegistry')
 export const MCP_RATE_LIMITER = Symbol('IMcpRateLimiter')
 export const MCP_AUDIT_LOGGER = Symbol('IMcpAuditLogger')
 export const MCP_OBSERVABILITY = Symbol('IMcpObservability')
@@ -54,7 +56,7 @@ export interface McpJsonRpcResponse {
 export class McpRequestHandler {
   constructor(
     @Inject(MCP_AUTHENTICATOR) private readonly authenticator: IMcpAuthenticator,
-    @Inject('IMcpToolRegistry') private readonly registry: IMcpToolRegistry,
+    @Inject(MCP_TOOL_REGISTRY) private readonly registry: IMcpToolRegistry,
     @Inject(MCP_RATE_LIMITER) private readonly rateLimiter: IMcpRateLimiter,
     @Inject(MCP_AUDIT_LOGGER) private readonly auditLogger: IMcpAuditLogger,
     @Inject(MCP_OBSERVABILITY) private readonly observability: IMcpObservability,
@@ -70,16 +72,40 @@ export class McpRequestHandler {
   ): Promise<McpJsonRpcResponse> {
     const requestId = request.id
 
+    // 0. Validate the JSON-RPC envelope shape.
+    const validationError = this.validateRequest(request)
+    if (validationError !== null) {
+      return {
+        jsonrpc: '2.0',
+        id: requestId,
+        error: { code: -32600, message: validationError },
+      }
+    }
+
     // 1. Authenticate.
     const session = await this.authenticator.authenticate(headers)
     if (session === null) {
       this.observability.recordAuthDenial(request.method)
+      // No trusted identity exists, so no attributable audit event can be recorded.
       return {
         jsonrpc: '2.0',
         id: requestId,
         error: {
           code: -32001,
           message: 'Authentication required',
+        },
+      }
+    }
+
+    // 1b. Enforce session expiry on every request.
+    if (Date.now() > Date.parse(session.expiresAt)) {
+      this.observability.recordAuthDenial(request.method)
+      return {
+        jsonrpc: '2.0',
+        id: requestId,
+        error: {
+          code: -32001,
+          message: 'Session expired',
         },
       }
     }
@@ -117,6 +143,36 @@ export class McpRequestHandler {
         },
       }
     }
+  }
+
+  /** Validate the JSON-RPC envelope. Returns an error message, or null if valid. */
+  private validateRequest(request: McpJsonRpcRequest): string | null {
+    if (request.jsonrpc !== '2.0') return 'Invalid jsonrpc version (expected "2.0")'
+    if (typeof request.id !== 'string' && typeof request.id !== 'number') {
+      return 'Missing or invalid request id'
+    }
+    if (typeof request.method !== 'string' || request.method.length === 0) {
+      return 'Missing or invalid method'
+    }
+    if (request.params !== undefined && typeof request.params !== 'object') {
+      return 'Invalid params (must be an object)'
+    }
+    return null
+  }
+
+  private async recordDeniedAudit(session: McpSession, toolName: string): Promise<void> {
+    await this.auditLogger.recordEvent({
+      id: uuid(),
+      sessionId: session.sessionId,
+      principalId: session.principalId,
+      organizationId: session.organizationId,
+      toolName,
+      requestId: session.sessionId,
+      outcome: 'denied',
+      latencyMs: 0,
+      timestamp: new Date().toISOString(),
+      metadata: {},
+    })
   }
 
   private handleToolsList(session: McpSession, requestId: string | number): McpJsonRpcResponse {
@@ -177,6 +233,7 @@ export class McpRequestHandler {
     )
     if (!hasCapabilities) {
       this.observability.recordAuthDenial(toolName)
+      await this.recordDeniedAudit(session, toolName)
       return {
         jsonrpc: '2.0',
         id: requestId,
@@ -191,6 +248,7 @@ export class McpRequestHandler {
     const rateCheck = await this.rateLimiter.check(session.sessionId, toolName)
     if (!rateCheck.allowed) {
       this.observability.recordRateLimit(toolName)
+      await this.recordDeniedAudit(session, toolName)
       return {
         jsonrpc: '2.0',
         id: requestId,
@@ -218,7 +276,8 @@ export class McpRequestHandler {
         organizationId: session.organizationId,
         toolName,
         requestId: toolCallId,
-        outcome: result.status === 'success' ? 'success' : 'error',
+        outcome:
+          result.status === McpToolResultStatus.SUCCESS ? ('success' as const) : ('error' as const),
         latencyMs,
         pipelineRunId: result.metadata.pipelineRunId,
         timestamp: new Date().toISOString(),
@@ -226,7 +285,11 @@ export class McpRequestHandler {
       })
 
       // 8. Record observability.
-      this.observability.recordToolCall(toolName, result.status === 'success', latencyMs)
+      this.observability.recordToolCall(
+        toolName,
+        result.status === McpToolResultStatus.SUCCESS,
+        latencyMs,
+      )
 
       return {
         jsonrpc: '2.0',
@@ -238,7 +301,7 @@ export class McpRequestHandler {
               text: JSON.stringify(result, null, 2),
             },
           ],
-          isError: result.status !== 'success',
+          isError: result.status !== McpToolResultStatus.SUCCESS,
         },
       }
     } catch (error) {

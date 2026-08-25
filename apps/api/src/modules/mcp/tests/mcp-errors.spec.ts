@@ -1,6 +1,8 @@
 /* MCP Error Model — unit tests. */
 
 import { describe, it, expect } from 'vitest'
+import { NotFoundException as NestNotFoundException } from '@nestjs/common'
+import { PermissionDeniedException } from '../../authorization/errors/authorization-errors'
 import {
   McpAuthenticationError,
   McpAccessDeniedError,
@@ -76,14 +78,13 @@ describe('toMcpError', () => {
   })
 
   it('maps NotFoundException to McpResourceNotFoundError', () => {
-    class NotFoundException extends Error {
-      constructor(message: string) {
-        super(message)
-        this.name = 'NotFoundException'
-      }
-    }
-    const error = toMcpError(new NotFoundException('Not found'))
+    const error = toMcpError(new NestNotFoundException('Not found'))
     expect(error).toBeInstanceOf(McpResourceNotFoundError)
+  })
+
+  it('maps PermissionDeniedException to McpAccessDeniedError', () => {
+    const error = toMcpError(new PermissionDeniedException('Denied by policy'))
+    expect(error).toBeInstanceOf(McpAccessDeniedError)
   })
 
   it('maps generic errors to McpInternalError', () => {

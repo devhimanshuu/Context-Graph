@@ -65,11 +65,6 @@ export class DevelopmentMcpAuthenticator implements IMcpAuthenticator {
       return null
     }
 
-    // If a valid dev key is provided, or we're in dev mode, use the default user.
-    if (apiKey !== this.devKey && !isDevMode) {
-      return null
-    }
-
     // TODO: In a real implementation, load the user from the database via UserService.
     // For now, construct the session from the default user ID.
     // The organizationId would come from the user's membership.

@@ -102,7 +102,7 @@ export interface McpResolveContextInput {
   readonly entryNodeId?: EntityId;
   readonly topK?: number;
   readonly maxCandidates?: number;
-  readonly retrievalMode?: "bfs" | "dfs";
+  readonly retrievalMode?: "bfs" | "weighted";
   readonly tokenBudget?: number;
   readonly executionMode?: "STANDARD" | "DEBUG" | "AUDIT";
 }

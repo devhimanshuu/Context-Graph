@@ -22,11 +22,16 @@ import {
   Inject,
   Param,
   Post,
+  UnauthorizedException,
 } from '@nestjs/common'
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { Throttle } from '@nestjs/throttler'
-import { McpRequestHandler, type McpJsonRpcRequest } from './services/mcp-request-handler'
-import { IMcpToolRegistry } from './domain/mcp.interfaces'
+import {
+  McpRequestHandler,
+  type McpJsonRpcRequest,
+  MCP_AUTHENTICATOR,
+} from './services/mcp-request-handler'
+import { IMcpAuthenticator, IMcpToolRegistry } from './domain/mcp.interfaces'
 
 @ApiBearerAuth()
 @ApiTags('MCP')
@@ -34,6 +39,7 @@ import { IMcpToolRegistry } from './domain/mcp.interfaces'
 export class McpController {
   constructor(
     private readonly handler: McpRequestHandler,
+    @Inject(MCP_AUTHENTICATOR) private readonly authenticator: IMcpAuthenticator,
     @Inject(IMcpToolRegistry) private readonly registry: IMcpToolRegistry,
   ) {}
 
@@ -62,14 +68,24 @@ export class McpController {
 
   /**
    * REST endpoint to list available MCP tools (convenience).
+   * Mirrors tools/list: only tools whose capabilities the caller holds are exposed.
    */
   @Get('tools')
   @ApiOperation({
     summary: 'List MCP tools',
-    description: 'Returns all registered MCP tool definitions.',
+    description:
+      'Returns registered MCP tool definitions filtered to the authenticated session capabilities.',
   })
-  listTools() {
-    return { tools: this.registry.getDefinitions() }
+  async listTools(@Headers() headers: Record<string, string | undefined>) {
+    const session = await this.authenticator.authenticate(headers)
+    if (session === null || Date.now() > Date.parse(session.expiresAt)) {
+      throw new UnauthorizedException('MCP authentication required')
+    }
+
+    const tools = this.registry
+      .getDefinitions()
+      .filter((def) => def.requiredCapabilities.every((cap) => session.capabilities.includes(cap)))
+    return { tools }
   }
 
   /**

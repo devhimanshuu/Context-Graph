@@ -4,7 +4,16 @@ Every MCP error carries a machine-readable code and a safe human-readable messag
 Internal stack traces, database details, and authorization internals are never
 included in MCP responses. */
 
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common'
+import { ThrottlerException } from '@nestjs/throttler'
 import { McpToolResultStatus } from '@contextgraph/types'
+import { ValidationException } from '../../../common/exceptions/validation.exception'
+import { PermissionDeniedException } from '../../authorization/errors/authorization-errors'
 
 /** Base class for all MCP errors. */
 export abstract class McpError extends Error {
@@ -132,24 +141,21 @@ export class McpProtocolError extends McpError {
 export function toMcpError(error: unknown): McpError {
   if (error instanceof McpError) return error
 
-  if (error instanceof Error) {
-    // Map known NestJS / domain errors to MCP errors.
-    const name = error.constructor.name
-    if (name === 'NotFoundException') {
-      return new McpResourceNotFoundError(error.message)
-    }
-    if (name === 'UnauthorizedException') {
-      return new McpAuthenticationError(error.message)
-    }
-    if (name === 'ForbiddenException' || name === 'PermissionDeniedException') {
-      return new McpAccessDeniedError(error.message)
-    }
-    if (name === 'BadRequestException' || name === 'ValidationException') {
-      return new McpInvalidInputError(error.message)
-    }
-    if (name === 'TooManyRequestsException' || name === 'ThrottlerException') {
-      return new McpRateLimitedError(error.message)
-    }
+  // Map known NestJS / domain errors via instanceof (robust under minification).
+  if (error instanceof NotFoundException) {
+    return new McpResourceNotFoundError(error.message)
+  }
+  if (error instanceof UnauthorizedException) {
+    return new McpAuthenticationError(error.message)
+  }
+  if (error instanceof ForbiddenException || error instanceof PermissionDeniedException) {
+    return new McpAccessDeniedError(error.message)
+  }
+  if (error instanceof BadRequestException || error instanceof ValidationException) {
+    return new McpInvalidInputError(error.message)
+  }
+  if (error instanceof ThrottlerException) {
+    return new McpRateLimitedError(error.message)
   }
 
   return new McpInternalError('An unexpected error occurred')

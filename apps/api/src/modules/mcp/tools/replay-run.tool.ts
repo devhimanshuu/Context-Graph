@@ -14,6 +14,7 @@ import { IMcpTool } from '../domain/mcp.interfaces'
 import { IPipelineRunService } from '../../pipeline/runs/pipeline-run.service'
 import { replayRunInputSchema, type ReplayRunInput } from '../schemas/mcp-tool-schemas'
 import { toMcpError } from '../errors/mcp-errors'
+import { invalidInputResult, mcpErrorResult, resultMetadata } from './tool-helpers'
 import type { McpToolDefinition } from '@contextgraph/types'
 
 @Injectable()
@@ -39,7 +40,7 @@ export class ReplayRunTool implements IMcpTool {
       },
       required: ['runId'],
     },
-    readOnly: true,
+    readOnly: false,
   }
 
   constructor(@Inject(IPipelineRunService) private readonly runService: IPipelineRunService) {}
@@ -53,18 +54,7 @@ export class ReplayRunTool implements IMcpTool {
     try {
       validated = replayRunInputSchema.parse(input)
     } catch (error) {
-      return {
-        toolCallId: requestId,
-        toolName: this.definition.name,
-        status: 'invalid_input' as const,
-        error: `Input validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        metadata: {
-          executionTimeMs: 0,
-          organizationId: session.organizationId,
-          principalId: session.principalId,
-          timestamp: new Date().toISOString(),
-        },
-      }
+      return invalidInputResult(this.definition.name, session, requestId, error)
     }
 
     try {
@@ -106,28 +96,17 @@ export class ReplayRunTool implements IMcpTool {
           funnel: pkg.summary.funnel,
           replayedAt: new Date().toISOString(),
         },
-        metadata: {
-          executionTimeMs,
-          organizationId: session.organizationId,
-          principalId: session.principalId,
-          pipelineRunId: pkg.requestId,
-          timestamp: new Date().toISOString(),
-        },
+        metadata: resultMetadata(session, executionTimeMs, pkg.requestId),
       }
     } catch (error) {
       const mcpError = toMcpError(error)
-      return {
-        toolCallId: requestId,
-        toolName: this.definition.name,
-        status: mcpError.code,
-        error: mcpError.message,
-        metadata: {
-          executionTimeMs: 0,
-          organizationId: session.organizationId,
-          principalId: session.principalId,
-          timestamp: new Date().toISOString(),
-        },
-      }
+      return mcpErrorResult(
+        this.definition.name,
+        session,
+        requestId,
+        mcpError.code,
+        mcpError.message,
+      )
     }
   }
 }

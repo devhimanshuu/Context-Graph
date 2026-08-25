@@ -17,6 +17,7 @@ import { McpToolRegistry } from './registry/mcp-tool-registry'
 import {
   McpRequestHandler,
   MCP_AUTHENTICATOR,
+  MCP_TOOL_REGISTRY,
   MCP_RATE_LIMITER,
   MCP_AUDIT_LOGGER,
   MCP_OBSERVABILITY,
@@ -51,9 +52,9 @@ function createAuthenticator() {
   imports: [PipelineModule, GraphModule],
   controllers: [McpController],
   providers: [
-    // Registry (as abstract class + concrete).
+    // Registry (as abstract class + token for handler injection).
     { provide: IMcpToolRegistry, useClass: McpToolRegistry },
-    { provide: 'IMcpToolRegistry', useExisting: IMcpToolRegistry },
+    { provide: MCP_TOOL_REGISTRY, useExisting: IMcpToolRegistry },
 
     // Authentication.
     { provide: MCP_AUTHENTICATOR, useClass: createAuthenticator() },

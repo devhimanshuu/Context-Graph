@@ -23,6 +23,12 @@ interface WindowEntry {
 export class McpRateLimiter implements IMcpRateLimiter {
   private readonly windows = new Map<string, WindowEntry>()
 
+  /** Last time a full sweep evicted stale windows (avoids sweeping per request). */
+  private lastSweepAt = 0
+
+  /** Sweep interval — one full-map eviction pass per default window. */
+  private static readonly SWEEP_INTERVAL_MS = 60_000
+
   async check(
     sessionId: string,
     toolName: string,
@@ -31,6 +37,8 @@ export class McpRateLimiter implements IMcpRateLimiter {
     const key = `${sessionId}:${toolName}`
     const now = Date.now()
     const windowStart = now - limits.windowMs
+
+    this.sweepIfDue(now, limits.windowMs)
 
     let entry = this.windows.get(key)
     if (entry === undefined) {
@@ -49,6 +57,26 @@ export class McpRateLimiter implements IMcpRateLimiter {
 
     entry.timestamps.push(now)
     return { allowed: true }
+  }
+
+  /**
+   * Evict windows for sessions that have gone silent, so idle sessions do not
+   * accumulate forever. Runs at most once per sweep interval.
+   */
+  private sweepIfDue(now: number, windowMs: number): void {
+    if (now - this.lastSweepAt < McpRateLimiter.SWEEP_INTERVAL_MS) {
+      return
+    }
+    this.lastSweepAt = now
+
+    const cutoff = now - Math.max(windowMs, McpRateLimiter.SWEEP_INTERVAL_MS)
+    for (const [key, entry] of this.windows) {
+      // Keep only entries with at least one timestamp still inside the window.
+      const latest = entry.timestamps[entry.timestamps.length - 1]
+      if (latest === undefined || latest <= cutoff) {
+        this.windows.delete(key)
+      }
+    }
   }
 
   /** Reset all windows (for testing). */

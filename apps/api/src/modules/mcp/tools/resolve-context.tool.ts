@@ -8,14 +8,18 @@ The agent receives ONLY the authorized context. It cannot bypass permissions,
 rules, or organization isolation. */
 
 import { Inject, Injectable } from '@nestjs/common'
-import type { McpSession, McpToolResult } from '@contextgraph/types'
+import type {
+  AuthenticatedUser,
+  McpSession,
+  McpToolDefinition,
+  McpToolResult,
+} from '@contextgraph/types'
 import { McpCapability as Cap } from '@contextgraph/types'
 import { IMcpTool } from '../domain/mcp.interfaces'
 import { IContextPipelineOrchestrator } from '../../pipeline/orchestrator/context-pipeline-orchestrator'
 import { resolveContextInputSchema, type ResolveContextInput } from '../schemas/mcp-tool-schemas'
-import { McpPipelineFailedError, toMcpError } from '../errors/mcp-errors'
-import type { McpToolDefinition } from '@contextgraph/types'
-import type { AuthenticatedUser } from '@contextgraph/types'
+import { toMcpError } from '../errors/mcp-errors'
+import { buildAgentUser, invalidInputResult, mcpErrorResult, resultMetadata } from './tool-helpers'
 
 @Injectable()
 export class ResolveContextTool implements IMcpTool {
@@ -78,31 +82,11 @@ export class ResolveContextTool implements IMcpTool {
     try {
       validated = resolveContextInputSchema.parse(input)
     } catch (error) {
-      return {
-        toolCallId: requestId,
-        toolName: this.definition.name,
-        status: 'invalid_input' as const,
-        error: `Input validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        metadata: {
-          executionTimeMs: 0,
-          organizationId: session.organizationId,
-          principalId: session.principalId,
-          timestamp: new Date().toISOString(),
-        },
-      }
+      return invalidInputResult(this.definition.name, session, requestId, error)
     }
 
     // 2. Build AuthenticatedUser from session (server-derived, never from input).
-    const user: AuthenticatedUser = {
-      id: session.principalId,
-      organizationId: session.organizationId,
-      departmentId: null,
-      email: 'mcp-agent@contextgraph.local',
-      name: `MCP Agent (${session.sessionId.slice(0, 8)})`,
-      role: 'VIEWER',
-      permissionLevel: 'READ',
-      complianceClearance: 'STANDARD',
-    }
+    const user: AuthenticatedUser = buildAgentUser(session)
 
     // 3. Execute the pipeline — authorization, graph traversal, rules, ranking, budget.
     try {
@@ -149,42 +133,17 @@ export class ResolveContextTool implements IMcpTool {
           },
           funnel: pkg.summary.funnel,
         },
-        metadata: {
-          executionTimeMs,
-          organizationId: session.organizationId,
-          principalId: session.principalId,
-          pipelineRunId: pkg.requestId,
-          timestamp: new Date().toISOString(),
-        },
+        metadata: resultMetadata(session, executionTimeMs, pkg.requestId),
       }
     } catch (error) {
       const mcpError = toMcpError(error)
-      if (mcpError instanceof McpPipelineFailedError || mcpError.code === 'pipeline_failed') {
-        return {
-          toolCallId: requestId,
-          toolName: this.definition.name,
-          status: 'pipeline_failed' as const,
-          error: mcpError.message,
-          metadata: {
-            executionTimeMs: 0,
-            organizationId: session.organizationId,
-            principalId: session.principalId,
-            timestamp: new Date().toISOString(),
-          },
-        }
-      }
-      return {
-        toolCallId: requestId,
-        toolName: this.definition.name,
-        status: mcpError.code,
-        error: mcpError.message,
-        metadata: {
-          executionTimeMs: 0,
-          organizationId: session.organizationId,
-          principalId: session.principalId,
-          timestamp: new Date().toISOString(),
-        },
-      }
+      return mcpErrorResult(
+        this.definition.name,
+        session,
+        requestId,
+        mcpError.code,
+        mcpError.message,
+      )
     }
   }
 }
