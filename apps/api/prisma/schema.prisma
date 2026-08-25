@@ -220,6 +220,15 @@ model Organization {
   agentExecutions    AgentExecution[]
   workflowDefinitions WorkflowDefinition[]
   workflowExecutions  WorkflowExecutionModel[]
+  memberships        Membership[]
+  teams              Team[]
+  customRoles        CustomRole[]
+  governancePolicies GovernancePolicy[]
+  agentDefinitions   AgentDefinitionModel[]
+  modelConfigs       ModelProviderConfiguration[]
+  budgets            Budget[]
+  auditEvents        GovernanceAuditEvent[]
+  breakGlassAccess   BreakGlassAccess[]
 
   @@index([status])
   @@index([industry])
@@ -323,6 +332,9 @@ model User {
   agentExecutions    AgentExecution[]
   createdWorkflows   WorkflowDefinition[]
   workflowExecutions  WorkflowExecutionModel[]
+  memberships        Membership[]
+  teamMemberships    TeamMembership[]
+  breakGlassAccess   BreakGlassAccess[]
 
   @@unique([organizationId, email])
   @@unique([organizationId, authProviderUserId])
@@ -1042,6 +1054,82 @@ model AgentApprovalRequest {
 // ===========================================================================
 
 /// Lifecycle of a workflow definition.
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  REMOVED
+}
+
+enum TeamStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum RoleStatus {
+  ACTIVE
+  DISABLED
+  ARCHIVED
+}
+
+enum PolicyType {
+  ACCESS
+  KNOWLEDGE
+  AGENT
+  WORKFLOW
+  MODEL
+  DATA_RETENTION
+  COST
+  SECURITY
+}
+
+enum PolicyStatus {
+  DRAFT
+  ACTIVE
+  DISABLED
+  ARCHIVED
+}
+
+enum AgentDefinitionStatus {
+  DRAFT
+  ACTIVE
+  DISABLED
+  ARCHIVED
+}
+
+enum ModelProviderStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum BudgetType {
+  ORGANIZATION
+  USER
+  AGENT
+  WORKFLOW
+  MODEL
+}
+
+enum BudgetPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+  CUSTOM
+}
+
+enum BudgetStatus {
+  NORMAL
+  WARNING
+  LIMIT_REACHED
+  BLOCKED
+}
+
+enum BreakGlassStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
 enum WorkflowDefinitionStatusEnum {
   DRAFT
   VALIDATED
@@ -1242,4 +1330,236 @@ model WorkflowApprovalModel {
   @@index([executionId])
   @@index([status])
   @@index([approverId])
+}
+
+// ============================================================
+// Phase 17 — Governance & Enterprise Control Plane
+// ============================================================
+
+/// User membership in an organization (supports multi-org).
+model Membership {
+  id             String         @id @default(uuid()) @db.Uuid
+  userId         String         @db.Uuid
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String         @db.Uuid
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           String         @default("MEMBER")
+  status         MembershipStatus @default(ACTIVE)
+  invitedBy      String?        @db.Uuid
+  metadata       Json           @default("{}")
+  joinedAt       DateTime       @default(now())
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([status])
+}
+
+/// A team within an organization.
+model Team {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  status         TeamStatus   @default(ACTIVE)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  memberships   TeamMembership[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+/// User membership in a team.
+model TeamMembership {
+  id         String   @id @default(uuid()) @db.Uuid
+  teamId     String   @db.Uuid
+  team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId     String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       String   @default("MEMBER")
+  joinedAt   DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@index([userId])
+}
+
+/// Custom role within an organization.
+model CustomRole {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  permissions    Json         @default("[]")
+  isBuiltIn      Boolean      @default(false)
+  status         RoleStatus   @default(ACTIVE)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+/// Governance policy with versioning.
+model GovernancePolicy {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  type           PolicyType
+  version        Int          @default(1)
+  status         PolicyStatus @default(DRAFT)
+  configuration  Json         @default("{}")
+  createdBy      String?      @db.Uuid
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, name, version])
+  @@index([organizationId, type])
+  @@index([organizationId, status])
+}
+
+/// Registered agent definition with governance controls.
+model AgentDefinitionModel {
+  id                    String               @id @default(uuid()) @db.Uuid
+  organizationId        String               @db.Uuid
+  organization          Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name                  String
+  description           String?
+  version               Int                  @default(1)
+  status                AgentDefinitionStatus @default(DRAFT)
+  capabilities          Json                 @default("[]")
+  allowedTools          Json                 @default("[]")
+  modelProvider         String?
+  modelName             String?
+  maxIterations         Int                  @default(5)
+  maxToolCalls          Int                  @default(10)
+  maxTokens             Int                  @default(15000)
+  maxCost               Float                @default(1.0)
+  maxExecutionDurationMs Int                 @default(300000)
+  policyReferences      Json                 @default("[]")
+  createdBy             String?              @db.Uuid
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  @@unique([organizationId, name, version])
+  @@index([organizationId, status])
+}
+
+/// Model provider configuration per organization.
+model ModelProviderConfiguration {
+  id                  String           @id @default(uuid()) @db.Uuid
+  organizationId      String           @db.Uuid
+  organization        Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider            String
+  status              ModelProviderStatus @default(ACTIVE)
+  allowedModels       Json             @default("[]")
+  blockedModels       Json             @default("[]")
+  defaultModel        String?
+  fallbackModel       String?
+  maxTokensPerRequest Int              @default(128000)
+  costPerInputToken   Float            @default(0)
+  costPerOutputToken  Float            @default(0)
+  metadata            Json             @default("{}")
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@unique([organizationId, provider])
+  @@index([organizationId])
+}
+
+/// Budget for cost control.
+model Budget {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  type           BudgetType
+  targetType     String?
+  targetId       String?      @db.Uuid
+  limit          Float
+  period         BudgetPeriod @default(MONTHLY)
+  currentUsage   Float        @default(0)
+  status         BudgetStatus @default(NORMAL)
+  warningThreshold Float      @default(0.8)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, type])
+  @@index([organizationId, status])
+}
+
+/// Usage record for cost and token tracking.
+model UsageRecord {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  userId         String   @db.Uuid
+  agentId        String?  @db.Uuid
+  workflowId     String?  @db.Uuid
+  modelProvider  String
+  modelName      String
+  inputTokens    Int      @default(0)
+  outputTokens   Int      @default(0)
+  toolCalls      Int      @default(0)
+  retrievalCalls Int      @default(0)
+  embeddingsCount Int     @default(0)
+  storageBytes   BigInt   @default(0)
+  durationMs     Int      @default(0)
+  estimatedCost  Float    @default(0)
+  timestamp      DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, timestamp])
+  @@index([organizationId, userId])
+  @@index([organizationId, modelProvider])
+}
+
+/// Immutable governance audit event with tamper-evident hash chain.
+model GovernanceAuditEvent {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorId        String       @db.Uuid
+  actorType      String       @default("USER")
+  eventType      String
+  action         String
+  resourceType   String
+  resourceId     String?      @db.Uuid
+  outcome        String       @default("SUCCESS")
+  requestId      String?
+  metadata       Json         @default("{}")
+  hash           String
+  previousHash   String?
+  timestamp      DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, timestamp])
+  @@index([organizationId, eventType])
+  @@index([organizationId, actorId])
+  @@index([outcome])
+}
+
+/// Break-glass emergency access.
+model BreakGlassAccess {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @db.Uuid
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String         @db.Uuid
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions    Json           @default("[]")
+  reason         String
+  grantedBy      String         @db.Uuid
+  status         BreakGlassStatus @default(ACTIVE)
+  expiresAt      DateTime
+  createdAt      DateTime       @default(now())
+
+  @@index([organizationId, status])
+  @@index([userId])
+  @@index([expiresAt])
 }

@@ -25,6 +25,7 @@ import { IngestionModule } from './modules/ingestion/ingestion.module'
 import { EvaluationModule } from './modules/evaluation/evaluation.module'
 import { AgentModule } from './modules/agent/agent.module'
 import { WorkflowModule } from './modules/workflow/workflow.module'
+import { GovernanceModule } from './modules/governance/governance.module'
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard'
 import { AuthorizationGuard } from './common/guards/authorization.guard'
 import { OrganizationGuard } from './common/guards/organization.guard'
@@ -77,6 +78,7 @@ import { ConfigService } from './config/config.service'
     EvaluationModule,
     AgentModule,
     WorkflowModule,
+    GovernanceModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
