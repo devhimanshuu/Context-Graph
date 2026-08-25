@@ -15,3 +15,4 @@ export * from "./domain/audit-log";
 export * from "./domain/agent";
 export * from "./domain/workflow";
 export * from "./domain/governance";
+export * from "./domain/mcp";

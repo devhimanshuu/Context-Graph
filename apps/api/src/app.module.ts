@@ -26,6 +26,7 @@ import { EvaluationModule } from './modules/evaluation/evaluation.module'
 import { AgentModule } from './modules/agent/agent.module'
 import { WorkflowModule } from './modules/workflow/workflow.module'
 import { GovernanceModule } from './modules/governance/governance.module'
+import { McpModule } from './modules/mcp/mcp.module'
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard'
 import { AuthorizationGuard } from './common/guards/authorization.guard'
 import { OrganizationGuard } from './common/guards/organization.guard'
@@ -79,6 +80,7 @@ import { ConfigService } from './config/config.service'
     AgentModule,
     WorkflowModule,
     GovernanceModule,
+    McpModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
