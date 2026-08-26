@@ -40,6 +40,7 @@ export const ROUTES = {
   events: '/dashboard/events',
   agentPlayground: '/dashboard/agent-playground',
   agentIdentities: '/dashboard/agents/identity',
+  multiAgentDemo: '/dashboard/agent-playground/multi-agent',
 } as const
 
 export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES]
@@ -86,4 +87,5 @@ export const ROUTE_TITLES: Readonly<Record<string, string>> = {
   [ROUTES.events]: 'Events',
   [ROUTES.agentPlayground]: 'Agent Playground',
   [ROUTES.agentIdentities]: 'Agent Identities',
+  [ROUTES.multiAgentDemo]: 'Multi-Agent Demo',
 } as const

@@ -1,14 +1,17 @@
 import Link from 'next/link'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Reveal } from './reveal'
 import { ROUTES } from '@/constants'
 
-/* Closing call-to-action panel: drifting aurora orbs over a wireframe grid, */
+/**
+ * Closing CTA panel — three paths for different audience segments:
+ * sign up, try the playground, or explore the dashboard.
+ */
 export function CtaSection() {
   return (
     <section
-      id="security"
+      id="get-started"
       className="relative scroll-mt-20 overflow-hidden border-t py-20 lg:py-24"
     >
       <div className="mx-auto w-[90%] max-w-7xl px-4 md:px-6">
@@ -30,11 +33,9 @@ export function CtaSection() {
             />
 
             <div className="relative mx-auto max-w-2xl px-6 py-16 text-center sm:px-12 lg:py-20">
-              {/* Inner content staggers as scale+fade so it doesn't double-
-                  slide inside the panel-level reveal below. */}
               <Reveal delay={60} direction="none">
                 <p className="text-primary font-mono text-xs font-medium tracking-[0.2em] uppercase">
-                  ▸ Security first
+                  ▸ Get started
                 </p>
               </Reveal>
               <Reveal delay={140} direction="none">
@@ -44,7 +45,7 @@ export function CtaSection() {
               </Reveal>
               <Reveal delay={220} direction="none">
                 <p className="text-muted-foreground mt-4 text-base leading-relaxed">
-                  Every query is permission-filtered, rule-checked and fully audited — so your AI
+                  Every query is permission-filtered, rule-checked and fully auditable — so your AI
                   only ever sees knowledge you can stand behind.
                 </p>
               </Reveal>
@@ -56,26 +57,29 @@ export function CtaSection() {
                     className="group shadow-[0_8px_32px_-8px_rgba(var(--cg-glow),0.55)] transition-shadow hover:shadow-[0_8px_40px_-6px_rgba(var(--cg-glow),0.7)]"
                     asChild
                   >
-                    <Link href={ROUTES.login}>
-                      Sign in to the workspace
+                    <Link href={ROUTES.signUp}>
+                      Get started free
                       <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
                     </Link>
                   </Button>
                   <Button
                     size="lg"
                     variant="outline"
-                    className="bg-background/60 backdrop-blur"
+                    className="group bg-background/60 backdrop-blur"
                     asChild
                   >
-                    <Link href={ROUTES.dashboard}>Take a look around</Link>
+                    <Link href={ROUTES.agentPlayground}>
+                      <Zap className="mr-2 size-4" />
+                      Try the Agent Playground
+                    </Link>
                   </Button>
                 </div>
               </Reveal>
 
               <Reveal delay={380} direction="none">
                 <p className="text-muted-foreground mt-7 font-mono text-xs">
-                  <span className="text-emerald-500">$</span> Secure by default · HIPAA-ready ·
-                  Audit-ready
+                  <span className="text-emerald-500">$</span> No credit card required · HIPAA-ready
+                  · SOC 2 · Audit-ready
                 </p>
               </Reveal>
             </div>

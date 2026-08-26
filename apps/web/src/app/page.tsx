@@ -11,12 +11,17 @@ import {
 } from 'lucide-react'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { Hero } from '@/components/marketing/hero'
+import { ProblemSolution } from '@/components/marketing/problem-solution'
 import { FeatureGrid } from '@/components/marketing/feature-grid'
 import { HowItWorks } from '@/components/marketing/how-it-works'
+import { ArchitectureDiagram } from '@/components/marketing/architecture-diagram'
+import { ProductShowcase } from '@/components/marketing/product-showcase'
 import { ProductTour } from '@/components/marketing/product-tour'
 import { UseCases } from '@/components/marketing/use-cases'
 import { ComparisonTable } from '@/components/marketing/comparison-table'
 import { CaseStudies } from '@/components/marketing/case-studies'
+import { Pricing } from '@/components/marketing/pricing'
+import { Changelog } from '@/components/marketing/changelog'
 import { Integrations } from '@/components/marketing/integrations'
 import { ComplianceStrip } from '@/components/marketing/compliance-strip'
 import { FaqSection } from '@/components/marketing/faq-section'
@@ -49,7 +54,7 @@ export default function LandingPage() {
   return (
     <div className="flex min-h-svh flex-col">
       <SiteHeader />
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <Hero />
 
         {/* Industry strip — trusted-by band: live label + icon wall */}
@@ -102,12 +107,17 @@ export default function LandingPage() {
           </div>
         </section>
 
+        <ProblemSolution />
         <FeatureGrid />
+        <ProductShowcase />
+        <ArchitectureDiagram />
         <HowItWorks />
         <ProductTour />
         <UseCases />
         <ComparisonTable />
         <CaseStudies />
+        <Pricing />
+        <Changelog />
         <Integrations />
         <ComplianceStrip />
         <FaqSection />

@@ -23,8 +23,9 @@ const NAV_LINKS = [
   { label: 'Features', href: '#features' },
   { label: 'How it works', href: '#how-it-works' },
   { label: 'Use cases', href: '#use-cases' },
+  { label: 'Security', href: '#compliance' },
+  { label: 'Pricing', href: '#pricing' },
   { label: 'FAQ', href: '#faq' },
-  { label: 'Security', href: '#security' },
 ] as const
 
 /* Marketing site header. Sticky with backdrop blur; navigation collapses to */
@@ -83,6 +84,14 @@ export function SiteHeader() {
                 className="text-muted-foreground hover:text-foreground transition-colors"
                 asChild
               >
+                <Link href={ROUTES.agentPlayground}>Playground</Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                asChild
+              >
                 <Link href={ROUTES.login}>Sign in</Link>
               </Button>
               <Button
@@ -134,6 +143,9 @@ export function SiteHeader() {
                     </Link>
                   </Button>
                   <Button asChild variant="outline" className="w-full">
+                    <Link href={ROUTES.agentPlayground}>Try the Playground</Link>
+                  </Button>
+                  <Button asChild variant="ghost" className="w-full">
                     <Link href={ROUTES.login}>Sign in</Link>
                   </Button>
                 </SheetFooter>

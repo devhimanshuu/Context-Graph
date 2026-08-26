@@ -13,7 +13,7 @@ const STANDARDS = [
 export function ComplianceStrip() {
   return (
     <section
-      id="compliance"
+      id="security"
       className="relative scroll-mt-20 overflow-hidden border-t py-16 lg:py-20"
     >
       {/* Ambient glow */}
@@ -24,9 +24,9 @@ export function ComplianceStrip() {
 
       <div className="mx-auto w-[90%] max-w-7xl px-4 md:px-6">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <p className="text-primary font-mono text-xs font-medium tracking-[0.2em] uppercase">
-            ▸ Compliance
-          </p>
+          <h3 className="text-primary font-mono text-xs font-medium tracking-[0.2em] uppercase">
+            Security & compliance
+          </h3>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl lg:text-[2.6rem]">
             Built for regulated environments
           </h2>

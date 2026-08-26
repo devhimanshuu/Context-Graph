@@ -33,7 +33,7 @@ export default async function DashboardLayout({
                 <DashboardShortcutsProvider>
                   <AppHeader user={session} />
                   <ApiStatusBar />
-                  <main className="flex-1 px-4 py-6 md:px-6 lg:px-8">
+                  <main id="main-content" className="flex-1 px-4 py-6 md:px-6 lg:px-8">
                     <div className="mx-auto w-full max-w-7xl">{children}</div>
                   </main>
                 </DashboardShortcutsProvider>

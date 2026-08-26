@@ -51,9 +51,9 @@ export function FaqSection() {
 
       <div className="relative mx-auto w-[90%] max-w-7xl px-4 md:px-6">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <p className="text-primary font-mono text-xs font-medium tracking-[0.2em] uppercase">
-            ▸ FAQ
-          </p>
+          <h3 className="text-primary font-mono text-xs font-medium tracking-[0.2em] uppercase">
+            FAQ
+          </h3>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl lg:text-[2.6rem]">
             Questions, answered
           </h2>

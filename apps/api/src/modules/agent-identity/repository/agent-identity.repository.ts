@@ -1,7 +1,8 @@
 /* Prisma-backed repositories for Agent Identity (Phase 14). */
 
 import { Injectable } from '@nestjs/common'
-import { PrismaClient } from '@prisma/client'
+import { randomUUID } from 'node:crypto'
+import { PrismaClient, Prisma } from '@prisma/client'
 import type {
   AgentIdentity,
   AgentIdentityStatus,
@@ -395,14 +396,16 @@ export class AgentSessionPrismaRepository implements IAgentSessionRepository {
     capabilities: readonly string[]
     expiresAt: Date
   }): Promise<AgentSession> {
+    const sessionId = randomUUID()
     const row = await this.prisma.agentIdentitySession.create({
       data: {
+        sessionId,
         agentIdentityId: data.agentIdentityId,
         credentialId: data.credentialId,
         organizationId: data.organizationId,
-        environment: data.environment,
-        capabilities: [...data.capabilities] as unknown as string[],
-        status: 'ACTIVE',
+        environment: data.environment as Prisma.AgentEnvironmentEnum,
+        capabilities: data.capabilities as unknown as Prisma.InputJsonValue,
+        status: 'ACTIVE' as Prisma.AgentSessionStatusEnum,
         expiresAt: data.expiresAt,
       },
     })

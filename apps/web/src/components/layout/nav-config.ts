@@ -111,6 +111,12 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         icon: Key,
         starred: true,
       },
+      {
+        title: 'Multi-Agent Demo',
+        href: ROUTES.multiAgentDemo,
+        icon: Users,
+        starred: true,
+      },
     ],
   },
   {

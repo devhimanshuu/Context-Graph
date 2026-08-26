@@ -14,22 +14,46 @@ const FOOTER_COLUMNS: ReadonlyArray<{ heading: string; links: readonly FooterLin
     heading: 'Product',
     links: [
       { label: 'Knowledge Graph', href: ROUTES.knowledgeGraph },
+      { label: 'Pipeline', href: ROUTES.pipeline },
       { label: 'Rules', href: ROUTES.rules },
       { label: 'Permissions', href: ROUTES.permissions },
-      { label: 'Contexts', href: ROUTES.contexts },
+      { label: 'Guardrails', href: ROUTES.guardrails },
+      { label: 'Agent Playground', href: ROUTES.agentPlayground },
     ],
   },
   {
-    heading: 'Explore',
+    heading: 'Platform',
     links: [
-      { label: 'Platform features', href: '#features' },
+      { label: 'Features', href: '#features' },
       { label: 'How it works', href: '#how-it-works' },
       { label: 'Use cases', href: '#use-cases' },
-      { label: 'FAQ', href: '#faq' },
+      { label: 'Pricing', href: '#pricing' },
       { label: 'Security', href: '#security' },
+      { label: 'FAQ', href: '#faq' },
     ],
   },
-]
+  {
+    heading: 'Developers',
+    links: [
+      { label: 'Agent Playground', href: ROUTES.agentPlayground },
+      { label: 'MCP Tools', href: '#features' },
+      { label: 'Multi-Agent Demo', href: ROUTES.multiAgentDemo },
+      { label: 'Events', href: ROUTES.events },
+      { label: 'Changelog', href: '#changelog' },
+    ],
+  },
+  {
+    heading: 'Company',
+    links: [
+      { label: 'About', href: '#' },
+      { label: 'Blog', href: '#' },
+      { label: 'Careers', href: '#' },
+      { label: 'Contact', href: '#' },
+      { label: 'Privacy', href: '#' },
+      { label: 'Terms', href: '#' },
+    ],
+  },
+] as const
 
 export function SiteFooter() {
   return (
@@ -49,12 +73,13 @@ export function SiteFooter() {
       </div>
 
       <div className="relative z-10 mx-auto w-[90%] max-w-7xl px-4 py-14 md:px-6">
-        <div className="grid gap-12 md:grid-cols-[1.4fr_1fr_1fr]">
-          <Reveal>
+        {/* Logo & description: full width on mobile, side column on desktop */}
+        <Reveal>
+          <div className="mb-10 space-y-5 lg:mb-0 lg:grid lg:grid-cols-[1.5fr_1fr_1fr_1fr_1fr] lg:gap-10">
             <div className="space-y-5">
               <AppLogo />
-              <p className="text-muted-foreground max-w-sm text-sm leading-relaxed">
-                {APP.description}
+              <p className="text-muted-foreground max-w-xs text-sm leading-relaxed">
+                The governed context, memory, and guardrail infrastructure layer for AI agents.
               </p>
               <span className="bg-background/60 text-muted-foreground inline-flex items-center gap-2 rounded-full border px-3 py-1.5 font-mono text-[11px]">
                 <span className="relative flex size-1.5" aria-hidden="true">
@@ -64,8 +89,11 @@ export function SiteFooter() {
                 All systems operational
               </span>
             </div>
-          </Reveal>
+          </div>
+        </Reveal>
 
+        {/* Link columns: 1-col mobile, 2-col sm, 4-col lg */}
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {FOOTER_COLUMNS.map((column, index) => (
             <Reveal key={column.heading} delay={120 + index * 80}>
               <p className="text-primary font-mono text-[10px] font-medium tracking-[0.25em] uppercase">

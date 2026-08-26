@@ -57,14 +57,14 @@ export function CaseStudies() {
     >
       <div className="relative mx-auto w-[90%] max-w-7xl px-4 md:px-6">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <p className="text-primary font-mono text-xs font-medium tracking-[0.2em] uppercase">
-            ▸ Case studies
-          </p>
+          <h3 className="text-primary font-mono text-xs font-medium tracking-[0.2em] uppercase">
+            Case studies
+          </h3>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl lg:text-[2.6rem]">
             How teams put knowledge to work
           </h2>
           <p className="text-muted-foreground mt-4 text-base leading-relaxed">
-            Real problem, governed approach, measurable outcome.
+            Synthetic demo scenarios — challenge, governed approach, measurable outcome.
           </p>
         </Reveal>
 

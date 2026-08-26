@@ -2,9 +2,11 @@ import {
   Boxes,
   Building2,
   FileCheck2,
+  Radio,
   ScrollText,
   ShieldCheck,
   Waypoints,
+  Zap,
   type LucideIcon,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -54,16 +56,30 @@ const FEATURES: readonly Feature[] = [
     description:
       'Append-only event log with before/after snapshots, validity windows and regulatory tags out of the box.',
   },
+  {
+    icon: Zap,
+    title: 'MCP tool server',
+    description:
+      'Production MCP server with 6 governed tools — agents connect once and get authorized context, action guardrails, and governed write-back.',
+  },
+  {
+    icon: Radio,
+    title: 'Real-time events',
+    description:
+      'SSE-powered event stream with transactional outbox, dead-letter handling, and tenant-scoped subscriptions for live agent and UI updates.',
+  },
 ]
 
-/* Bento spans: a wide lead card, a row of three midsize cards, then a full-width */
+/* Bento spans: 4-col grid — two full-width cards bookend three rows of two. */
 const BENTO_SPANS = [
   'sm:col-span-2 lg:col-span-4',
   'sm:col-span-1 lg:col-span-2',
   'sm:col-span-1 lg:col-span-2',
   'sm:col-span-1 lg:col-span-2',
   'sm:col-span-1 lg:col-span-2',
-  'sm:col-span-2 lg:col-span-6',
+  'sm:col-span-1 lg:col-span-2',
+  'sm:col-span-1 lg:col-span-2',
+  'sm:col-span-2 lg:col-span-4',
 ] as const
 
 /** The wide closing card reads best with a roomier description. */
@@ -83,9 +99,9 @@ export function FeatureGrid() {
 
       <div className="mx-auto w-[90%] max-w-7xl px-4 md:px-6">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <p className="text-primary font-mono text-xs font-medium tracking-[0.2em] uppercase">
-            ▸ Platform
-          </p>
+          <h3 className="text-primary font-mono text-xs font-medium tracking-[0.2em] uppercase">
+            Platform capabilities
+          </h3>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl lg:text-[2.6rem]">
             Everything an enterprise context platform needs
           </h2>
@@ -95,7 +111,7 @@ export function FeatureGrid() {
           </p>
         </Reveal>
 
-        <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+        <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {FEATURES.map((feature, index) => (
             <Reveal
               key={feature.title}
