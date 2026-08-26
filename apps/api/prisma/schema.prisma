@@ -232,6 +232,8 @@ model Organization {
   nodeProposals      NodeProposal[]
   nodeWriteRuns      NodeWriteRun[]
   approvalRequests   ProposalApprovalRequest[]
+  outboxEvents       OutboxEvent[]
+  eventSubscriptions EventSubscription[]
 
   @@index([status])
   @@index([industry])
@@ -1721,4 +1723,72 @@ model ProposalApprovalRequest {
   @@index([proposalId])
   @@index([status])
   @@index([createdAt])
+}
+
+// ─── Phase 12: Event Stream & Real-Time Events ───────────────────────────────
+
+/// Status of an outbox event.
+enum OutboxEventStatusEnum {
+  PENDING
+  PUBLISHED
+  FAILED
+  DEAD_LETTER
+}
+
+/// Status of an event subscription.
+enum SubscriptionStatusEnum {
+  ACTIVE
+  PAUSED
+  EXPIRED
+  CANCELLED
+}
+
+/// Client type for event subscriptions.
+enum SubscriptionClientTypeEnum {
+  DASHBOARD
+  MCP
+  AGENT
+  SYSTEM
+}
+
+/// Transactional outbox event — created atomically with state changes.
+model OutboxEvent {
+  id               String              @id @default(uuid()) @db.Uuid
+  eventId          String              @unique
+  eventType        String
+  aggregateType    String
+  aggregateId      String              @db.Uuid
+  organizationId   String              @db.Uuid
+  organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  payload          Json                @default("{}")
+  status           OutboxEventStatusEnum @default(PENDING)
+  attemptCount     Int                 @default(0)
+  maxAttempts      Int                 @default(5)
+  availableAt      DateTime            @default(now())
+  createdAt        DateTime            @default(now())
+  publishedAt      DateTime?
+  lastError        String?
+
+  @@index([status, availableAt])
+  @@index([organizationId, createdAt])
+  @@index([eventType])
+  @@index([aggregateType, aggregateId])
+}
+
+/// Event subscription for SSE / agent consumption.
+model EventSubscription {
+  id               String                   @id @default(uuid()) @db.Uuid
+  organizationId   String                   @db.Uuid
+  organization     Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  principalId      String                   @db.Uuid
+  clientType       SubscriptionClientTypeEnum
+  eventTypes       Json                     @default("[]")
+  status           SubscriptionStatusEnum   @default(ACTIVE)
+  lastEventId      String?
+  createdAt        DateTime                 @default(now())
+  expiresAt        DateTime?
+
+  @@index([organizationId, status])
+  @@index([principalId])
+  @@index([status, expiresAt])
 }

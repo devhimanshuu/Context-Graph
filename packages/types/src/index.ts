@@ -18,3 +18,4 @@ export * from "./domain/governance";
 export * from "./domain/mcp";
 export * from "./domain/action-guardrail";
 export * from "./domain/node-proposal";
+export * from "./domain/events";

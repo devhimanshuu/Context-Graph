@@ -26,6 +26,7 @@ import {
   Shield,
   ShieldAlert,
   FileText,
+  Activity,
 } from 'lucide-react'
 import { ROUTES } from '@/constants'
 
@@ -90,6 +91,7 @@ export const NAV_SECTIONS: readonly NavSection[] = [
       { title: 'Guardrails', href: ROUTES.guardrails, icon: ShieldAlert, starred: true },
       { title: 'Proposals', href: ROUTES.proposals, icon: FileText },
       { title: 'Approvals', href: ROUTES.proposalApprovals, icon: ShieldCheck },
+      { title: 'Events', href: ROUTES.events, icon: Activity },
     ],
   },
   {
