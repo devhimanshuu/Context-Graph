@@ -229,6 +229,9 @@ model Organization {
   budgets            Budget[]
   auditEvents        GovernanceAuditEvent[]
   breakGlassAccess   BreakGlassAccess[]
+  nodeProposals      NodeProposal[]
+  nodeWriteRuns      NodeWriteRun[]
+  approvalRequests   ProposalApprovalRequest[]
 
   @@index([status])
   @@index([industry])
@@ -260,6 +263,7 @@ model Workspace {
   agentExecutions    AgentExecution[]
   workflowDefinitions WorkflowDefinition[]
   workflowExecutions  WorkflowExecutionModel[]
+  nodeProposals       NodeProposal[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -335,6 +339,9 @@ model User {
   memberships        Membership[]
   teamMemberships    TeamMembership[]
   breakGlassAccess   BreakGlassAccess[]
+  proposedProposals  NodeProposal[]
+  approvalCreated   ProposalApprovalRequest[]
+  approvalResolved  ProposalApprovalRequest[] @relation("ApprovalResolvedBy")
 
   @@unique([organizationId, email])
   @@unique([organizationId, authProviderUserId])
@@ -389,6 +396,8 @@ model KnowledgeNode {
   complianceTags KnowledgeNodeComplianceTag[]
   sourceEdges    GraphEdge[]                  @relation("GraphEdgeSource")
   targetEdges    GraphEdge[]                  @relation("GraphEdgeTarget")
+  publishedProposals NodeProposal[]          @relation("NodeProposalPublishedNode")
+  proposalTargetEdges NodeProposalRelationship[] @relation("NodeProposalRelationshipTarget")
 
   // -- Organization isolation ---------------------------------------------
   @@index([organizationId, status])
@@ -1562,4 +1571,154 @@ model BreakGlassAccess {
   @@index([organizationId, status])
   @@index([userId])
   @@index([expiresAt])
+}
+
+// ─── Phase 11: Governed Agent Write-Back ──────────────────────────────────────
+
+/// Lifecycle of a node proposal submitted by an agent.
+enum ProposalStatusEnum {
+  PROPOSED
+  VALIDATING
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  PERSISTING
+  PUBLISHED
+  FAILED
+  ARCHIVED
+}
+
+/// Final decision on a proposal.
+enum ProposalDecisionEnum {
+  PUBLISHED
+  PENDING_APPROVAL
+  REJECTED
+  DUPLICATE
+  FAILED
+}
+
+/// Data classification for proposed knowledge.
+enum DataClassificationEnum {
+  PUBLIC
+  INTERNAL
+  CONFIDENTIAL
+  RESTRICTED
+}
+
+/// A governed proposal for agent-created knowledge.
+model NodeProposal {
+  id               String               @id @default(uuid()) @db.Uuid
+  organizationId   String               @db.Uuid
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspaceId      String               @db.Uuid
+  workspace        Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proposedById     String?              @db.Uuid
+  proposedBy       User?                @relation(fields: [proposedById], references: [id], onDelete: SetNull)
+  agentIdentityId  String?              @db.Uuid
+  agentMcpSessionId String?             @db.Uuid
+  nodeType         String               // FACT or DECISION
+  title            String
+  content          String
+  contentHash      String               // Deterministic hash for dedup
+  classification   DataClassificationEnum @default(INTERNAL)
+  departmentId     String?              @db.Uuid
+  metadata         Json                 @default("{}")
+  sourceReferences Json                 @default("[]")
+  status           ProposalStatusEnum   @default(PROPOSED)
+  decision         ProposalDecisionEnum?
+  decisionReason   String?
+  publishedNodeId  String?              @db.Uuid
+  publishedNode    KnowledgeNode?       @relation("NodeProposalPublishedNode", fields: [publishedNodeId], references: [id], onDelete: SetNull)
+  idempotencyKey   String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  relationships    NodeProposalRelationship[]
+  writeRuns        NodeWriteRun[]
+  approvalRequests ProposalApprovalRequest[]
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, status])
+  @@index([organizationId, contentHash])
+  @@index([workspaceId])
+  @@index([proposedById])
+  @@index([status])
+}
+
+/// Relationships proposed alongside a node proposal.
+model NodeProposalRelationship {
+  id               String       @id @default(uuid()) @db.Uuid
+  proposalId       String       @db.Uuid
+  proposal         NodeProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  targetNodeId     String       @db.Uuid
+  targetNode       KnowledgeNode @relation("NodeProposalRelationshipTarget", fields: [targetNodeId], references: [id], onDelete: Cascade)
+  relationshipType RelationshipType
+  weight           Float        @default(1)
+  metadata         Json         @default("{}")
+  createdAt        DateTime     @default(now())
+
+  @@index([proposalId])
+  @@index([targetNodeId])
+}
+
+/// Immutable execution record for a proposal write-back attempt.
+model NodeWriteRun {
+  id                 String               @id @default(uuid()) @db.Uuid
+  organizationId     String               @db.Uuid
+  organization       Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  proposalId         String               @db.Uuid
+  proposal           NodeProposal         @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposalVersion    Int                  @default(1)
+  status             ProposalStatusEnum   @default(PROPOSED)
+  decision           ProposalDecisionEnum?
+  validationTrace    Json                 @default("[]")
+  publishedNodeId    String?              @db.Uuid
+  relationshipsCreated Int                @default(0)
+  auditEventIds      Json                 @default("[]")
+  startedAt          DateTime             @default(now())
+  completedAt        DateTime?
+  error              String?
+
+  @@index([organizationId])
+  @@index([proposalId])
+  @@index([status])
+}
+
+/// Status of a proposal approval request.
+enum ApprovalRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+/// A human approval request for a proposal requiring review.
+model ProposalApprovalRequest {
+  id               String                @id @default(uuid()) @db.Uuid
+  organizationId   String                @db.Uuid
+  organization     Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  proposalId       String                @db.Uuid
+  proposal         NodeProposal          @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  requestedAction  String
+  nodeType         String
+  title            String
+  content          String
+  classification   String
+  proposedById     String?               @db.Uuid
+  proposedBy       User?                 @relation(fields: [proposedById], references: [id], onDelete: SetNull)
+  agentIdentityId  String?
+  status           ApprovalRequestStatus @default(PENDING)
+  resolvedById     String?               @db.Uuid
+  resolvedBy       User?                 @relation("ApprovalResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  resolutionNote   String?
+  publishedNodeId  String?               @db.Uuid
+  createdAt        DateTime              @default(now())
+  resolvedAt       DateTime?
+  expiresAt        DateTime?
+
+  @@index([organizationId, status])
+  @@index([proposalId])
+  @@index([status])
+  @@index([createdAt])
 }

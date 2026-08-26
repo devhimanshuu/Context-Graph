@@ -28,6 +28,7 @@ import { WorkflowModule } from './modules/workflow/workflow.module'
 import { GovernanceModule } from './modules/governance/governance.module'
 import { McpModule } from './modules/mcp/mcp.module'
 import { GuardrailsModule } from './modules/guardrails/guardrails.module'
+import { WriteBackModule } from './modules/writeback/writeback.module'
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard'
 import { AuthorizationGuard } from './common/guards/authorization.guard'
 import { OrganizationGuard } from './common/guards/organization.guard'
@@ -83,6 +84,7 @@ import { ConfigService } from './config/config.service'
     GovernanceModule,
     McpModule,
     GuardrailsModule,
+    WriteBackModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

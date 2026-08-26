@@ -17,3 +17,4 @@ export * from "./domain/workflow";
 export * from "./domain/governance";
 export * from "./domain/mcp";
 export * from "./domain/action-guardrail";
+export * from "./domain/node-proposal";

@@ -35,6 +35,8 @@ export const ROUTES = {
   governanceTeams: '/dashboard/governance/teams',
   governanceRoles: '/dashboard/governance/roles',
   guardrails: '/dashboard/guardrails',
+  proposals: '/dashboard/proposals',
+  proposalApprovals: '/dashboard/proposals/approvals',
 } as const
 
 export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES]
@@ -76,4 +78,6 @@ export const ROUTE_TITLES: Readonly<Record<string, string>> = {
   [ROUTES.governanceTeams]: 'Teams',
   [ROUTES.governanceRoles]: 'Roles',
   [ROUTES.guardrails]: 'Guardrails',
+  [ROUTES.proposals]: 'Proposals',
+  [ROUTES.proposalApprovals]: 'Approvals',
 } as const

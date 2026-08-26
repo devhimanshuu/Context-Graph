@@ -31,10 +31,12 @@ import { GetSubgraphTool } from './tools/get-subgraph.tool'
 import { GetRunTool } from './tools/get-run.tool'
 import { ReplayRunTool } from './tools/replay-run.tool'
 import { CheckActionTool } from './tools/check-action.tool'
+import { ProposeNodeTool } from './tools/propose-node.tool'
 import { IMcpToolRegistry } from './domain/mcp.interfaces'
 import { PipelineModule } from '../pipeline/pipeline.module'
 import { GraphModule } from '../graph/graph.module'
 import { GuardrailsModule } from '../guardrails/guardrails.module'
+import { WriteBackModule } from '../writeback/writeback.module'
 
 /**
  * Selects the appropriate authenticator based on environment.
@@ -51,7 +53,7 @@ function createAuthenticator() {
 }
 
 @Module({
-  imports: [PipelineModule, GraphModule, GuardrailsModule],
+  imports: [PipelineModule, GraphModule, GuardrailsModule, WriteBackModule],
   controllers: [McpController],
   providers: [
     // Registry (as abstract class + token for handler injection).
@@ -77,6 +79,7 @@ function createAuthenticator() {
     GetRunTool,
     ReplayRunTool,
     CheckActionTool,
+    ProposeNodeTool,
   ],
 })
 export class McpModule implements OnModuleInit {
@@ -87,14 +90,16 @@ export class McpModule implements OnModuleInit {
     private readonly getRunTool: GetRunTool,
     private readonly replayRunTool: ReplayRunTool,
     private readonly checkActionTool: CheckActionTool,
+    private readonly proposeNodeTool: ProposeNodeTool,
   ) {}
 
   onModuleInit(): void {
-    // Auto-register all Phase 9 + Phase 10 tools.
+    // Auto-register all Phase 9 + Phase 10 + Phase 11 tools.
     this.registry.register(this.resolveContextTool)
     this.registry.register(this.getSubgraphTool)
     this.registry.register(this.getRunTool)
     this.registry.register(this.replayRunTool)
     this.registry.register(this.checkActionTool)
+    this.registry.register(this.proposeNodeTool)
   }
 }
