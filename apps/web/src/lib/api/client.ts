@@ -38,6 +38,16 @@ import type {
   UpdateKnowledgeNodeInput,
   UserRecord,
 } from './types'
+import type {
+  ResolveContextResult,
+  CheckActionResult,
+  ProposeNodeResult,
+  SubgraphResult,
+  PipelineRunDetail,
+  ReplayResult,
+  McpToolInfo,
+  McpSessionInfo,
+} from './playground-types'
 
 /* NestJS API base (`/api/v1`); override via NEXT_PUBLIC_API_URL. */
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1'
@@ -535,5 +545,80 @@ export class ApiClient {
     enableLexical?: boolean
   }): Promise<RetrievalResult> {
     return this.post<RetrievalResult>('/api/v1/retrieval/search', body)
+  }
+
+  // -- Agent Playground (MCP tool wrappers) -------------------------------------
+
+  /** MCP resolve_context — returns governed context package. */
+  playgroundResolveContext(body: {
+    query: string
+    workspaceId: string
+    entryNodeId?: string
+    topK?: number
+    maxCandidates?: number
+    retrievalMode?: string
+    tokenBudget?: number
+    executionMode?: string
+  }): Promise<ResolveContextResult> {
+    return this.post<ResolveContextResult>('/api/v1/mcp/resolve-context', body)
+  }
+
+  /** MCP check_action — evaluate action authorization. */
+  playgroundCheckAction(body: {
+    action: string
+    targetType: string
+    targetId?: string
+    parameters?: Record<string, unknown>
+    purpose?: string
+  }): Promise<CheckActionResult> {
+    return this.post<CheckActionResult>('/api/v1/mcp/check-action', body)
+  }
+
+  /** MCP propose_node — propose governed knowledge. */
+  playgroundProposeNode(body: {
+    nodeType: string
+    title: string
+    content: string
+    classification: string
+    workspaceId: string
+    departmentId?: string | null
+    complianceTags?: string[]
+    sourceReferences?: unknown[]
+    relationshipRequests?: unknown[]
+    purpose?: string
+    idempotencyKey?: string
+  }): Promise<ProposeNodeResult> {
+    return this.post<ProposeNodeResult>('/api/v1/mcp/propose-node', body)
+  }
+
+  /** MCP get_subgraph — inspect authorized graph portion. */
+  playgroundGetSubgraph(body: {
+    nodeId: string
+    workspaceId: string
+    maxDepth?: number
+    direction?: string
+    includeMetadata?: boolean
+  }): Promise<SubgraphResult> {
+    return this.post<SubgraphResult>('/api/v1/mcp/get-subgraph', body)
+  }
+
+  /** MCP get_run — inspect a pipeline run. */
+  playgroundGetRun(runId: string): Promise<PipelineRunDetail> {
+    return this.get<PipelineRunDetail>(`/api/v1/mcp/get-run/${encodeURIComponent(runId)}`)
+  }
+
+  /** MCP replay_run — replay a pipeline execution. */
+  playgroundReplayRun(runId: string): Promise<ReplayResult> {
+    return this.post<ReplayResult>(`/api/v1/mcp/replay-run/${encodeURIComponent(runId)}`)
+  }
+
+  /** MCP tool list — discover available MCP tools. */
+  playgroundTools(): Promise<McpToolInfo[]> {
+    return this.get<McpToolInfo[]>('/api/v1/mcp/tools')
+  }
+
+  /** MCP session info — current authenticated identity. */
+  playgroundSession(): Promise<McpSessionInfo> {
+    return this.get<McpSessionInfo>('/api/v1/mcp/session')
   }
 }
