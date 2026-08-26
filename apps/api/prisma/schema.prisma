@@ -234,6 +234,8 @@ model Organization {
   approvalRequests   ProposalApprovalRequest[]
   outboxEvents       OutboxEvent[]
   eventSubscriptions EventSubscription[]
+  agentIdentities    AgentIdentity[]
+  agentSessions      AgentIdentitySession[]
 
   @@index([status])
   @@index([industry])
@@ -344,6 +346,8 @@ model User {
   proposedProposals  NodeProposal[]
   approvalCreated   ProposalApprovalRequest[]
   approvalResolved  ProposalApprovalRequest[] @relation("ApprovalResolvedBy")
+  ownedAgents       AgentIdentity[]
+  grantedAgentCaps  AgentIdentityCapability[]
 
   @@unique([organizationId, email])
   @@unique([organizationId, authProviderUserId])
@@ -1790,5 +1794,130 @@ model EventSubscription {
 
   @@index([organizationId, status])
   @@index([principalId])
+  @@index([status, expiresAt])
+}
+
+// ─── Phase 14: Agent Identity & Service Accounts ──────────────────────────
+
+/// Lifecycle status of an agent identity.
+enum AgentIdentityStatusEnum {
+  ACTIVE
+  SUSPENDED
+  REVOKED
+  ARCHIVED
+}
+
+/// Environment scope for agent identities.
+enum AgentEnvironmentEnum {
+  DEVELOPMENT
+  STAGING
+  PRODUCTION
+}
+
+/// Credential type for agent authentication.
+enum AgentCredentialTypeEnum {
+  API_KEY
+}
+
+/// Status of an agent credential.
+enum AgentCredentialStatusEnum {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+/// Status of an agent session.
+enum AgentSessionStatusEnum {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+/// Agent identity — a workload identity for AI agents.
+model AgentIdentity {
+  id               String                   @id @default(uuid()) @db.Uuid
+  organizationId   String                   @db.Uuid
+  organization     Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name             String
+  slug             String
+  description      String?
+  purpose          String?
+  environment      AgentEnvironmentEnum     @default(DEVELOPMENT)
+  status           AgentIdentityStatusEnum  @default(ACTIVE)
+  ownerUserId      String?                  @db.Uuid
+  ownerUser        User?                    @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  lastUsedAt       DateTime?
+
+  credentials      AgentCredential[]
+  capabilities     AgentIdentityCapability[]
+  sessions         AgentIdentitySession[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, status])
+  @@index([status])
+  @@index([ownerUserId])
+}
+
+/// Agent credential — API key or other auth material.
+model AgentCredential {
+  id               String                     @id @default(uuid()) @db.Uuid
+  agentIdentityId  String                     @db.Uuid
+  agentIdentity    AgentIdentity              @relation(fields: [agentIdentityId], references: [id], onDelete: Cascade)
+  name             String
+  type             AgentCredentialTypeEnum    @default(API_KEY)
+  status           AgentCredentialStatusEnum  @default(ACTIVE)
+  keyPrefix        String
+  keyHash          String
+  createdAt        DateTime                   @default(now())
+  expiresAt        DateTime?
+  lastUsedAt       DateTime?
+  revokedAt        DateTime?
+
+  sessions         AgentIdentitySession[]
+
+  @@index([agentIdentityId, status])
+  @@index([keyPrefix])
+  @@index([status, expiresAt])
+}
+
+/// Capability grant for an agent identity.
+model AgentIdentityCapability {
+  id               String   @id @default(uuid()) @db.Uuid
+  agentIdentityId  String   @db.Uuid
+  agentIdentity    AgentIdentity @relation(fields: [agentIdentityId], references: [id], onDelete: Cascade)
+  capability       String
+  grantedBy        String?  @db.Uuid
+  grantedByUser    User?    @relation(fields: [grantedBy], references: [id], onDelete: SetNull)
+  grantedAt        DateTime @default(now())
+  expiresAt        DateTime?
+
+  @@unique([agentIdentityId, capability])
+  @@index([agentIdentityId])
+  @@index([capability])
+}
+
+/// Active session for an authenticated agent.
+model AgentIdentitySession {
+  id               String                 @id @default(uuid()) @db.Uuid
+  sessionId        String                 @unique
+  agentIdentityId  String                 @db.Uuid
+  agentIdentity    AgentIdentity          @relation(fields: [agentIdentityId], references: [id], onDelete: Cascade)
+  credentialId     String                 @db.Uuid
+  credential       AgentCredential        @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  organizationId   String                 @db.Uuid
+  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  environment      AgentEnvironmentEnum
+  capabilities     Json                   @default("[]")
+  status           AgentSessionStatusEnum @default(ACTIVE)
+  createdAt        DateTime               @default(now())
+  expiresAt        DateTime
+  lastActivityAt   DateTime               @default(now())
+
+  @@index([agentIdentityId, status])
+  @@index([sessionId])
+  @@index([credentialId])
+  @@index([organizationId, status])
   @@index([status, expiresAt])
 }

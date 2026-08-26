@@ -28,6 +28,7 @@ import {
   FileText,
   Activity,
   Terminal,
+  Key,
 } from 'lucide-react'
 import { ROUTES } from '@/constants'
 
@@ -102,6 +103,12 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         title: 'Agent Playground',
         href: ROUTES.agentPlayground,
         icon: Terminal,
+        starred: true,
+      },
+      {
+        title: 'Agent Identities',
+        href: ROUTES.agentIdentities,
+        icon: Key,
         starred: true,
       },
     ],

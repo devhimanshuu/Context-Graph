@@ -37,6 +37,8 @@ import { PipelineModule } from '../pipeline/pipeline.module'
 import { GraphModule } from '../graph/graph.module'
 import { GuardrailsModule } from '../guardrails/guardrails.module'
 import { WriteBackModule } from '../writeback/writeback.module'
+import { AgentIdentityModule } from '../agent-identity/agent-identity.module'
+import { AgentMcpAuthenticator } from '../agent-identity/services/agent-mcp-authenticator'
 
 /**
  * Selects the appropriate authenticator based on environment.
@@ -45,15 +47,15 @@ import { WriteBackModule } from '../writeback/writeback.module'
 function createAuthenticator() {
   const isProduction = process.env.NODE_ENV === 'production'
   if (isProduction) {
-    return JwtMcpAuthenticator
+    // Phase 14: Use the production agent identity authenticator.
+    return AgentMcpAuthenticator
   }
   // In development, use the development authenticator.
-  // The JwtMcpAuthenticator is also available but the dev one is simpler for testing.
   return DevelopmentMcpAuthenticator
 }
 
 @Module({
-  imports: [PipelineModule, GraphModule, GuardrailsModule, WriteBackModule],
+  imports: [PipelineModule, GraphModule, GuardrailsModule, WriteBackModule, AgentIdentityModule],
   controllers: [McpController],
   providers: [
     // Registry (as abstract class + token for handler injection).
@@ -61,9 +63,12 @@ function createAuthenticator() {
     { provide: MCP_TOOL_REGISTRY, useExisting: IMcpToolRegistry },
 
     // Authentication.
+    // In production, use AgentMcpAuthenticator (Phase 14 agent identity system).
+    // In development, fall back to the development authenticator.
     { provide: MCP_AUTHENTICATOR, useClass: createAuthenticator() },
     DevelopmentMcpAuthenticator,
     JwtMcpAuthenticator,
+    AgentMcpAuthenticator,
 
     // Infrastructure services.
     { provide: MCP_RATE_LIMITER, useClass: McpRateLimiter },
