@@ -7,38 +7,8 @@ import { Button } from '@/components/ui/button'
 import { StatCard } from '@/components/dashboard/stat-card'
 import Link from 'next/link'
 import { Bot, Play, CheckCircle2, XCircle, Clock, Zap, Shield, DollarSign } from 'lucide-react'
-
-interface AgentExecution {
-  executionId: string
-  status: string
-  userRequest: string
-  finalResponse: string | null
-  iterations: number
-  toolCalls: number
-  inputTokens: number
-  outputTokens: number
-  estimatedCost: number
-  durationMs: number
-  error: string | null
-  createdAt: string
-  completedAt: string | null
-}
-
-interface AgentAnalytics {
-  totalExecutions: number
-  completedExecutions: number
-  failedExecutions: number
-  completionRate: number
-  averageDurationMs: number
-  averageIterations: number
-  averageToolCalls: number
-  totalToolCalls: number
-  policyDenials: number
-  totalInputTokens: number
-  totalOutputTokens: number
-  estimatedTotalCost: number
-  verificationFailures: number
-}
+import { useApi } from '@/components/dashboard/api-provider'
+import type { AgentAnalytics, AgentListResponse } from '@/lib/api/types'
 
 const STATUS_COLORS: Record<string, string> = {
   COMPLETED: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
@@ -58,22 +28,23 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function AgentsPage() {
+  const { client } = useApi()
   const { data: analytics } = useQuery<AgentAnalytics>({
     queryKey: ['agent-analytics'],
-    queryFn: async () => {
-      const res = await fetch('/api/v1/agents/analytics')
-      if (!res.ok) throw new Error('Failed to fetch analytics')
-      return res.json()
+    queryFn: () => {
+      if (client === null) throw new Error('API not connected')
+      return client.agentAnalytics()
     },
+    enabled: client !== null,
   })
 
-  const { data: executionsData } = useQuery<{ executions: AgentExecution[]; total: number }>({
+  const { data: executionsData } = useQuery<AgentListResponse>({
     queryKey: ['agent-executions'],
-    queryFn: async () => {
-      const res = await fetch('/api/v1/agents/executions')
-      if (!res.ok) throw new Error('Failed to fetch executions')
-      return res.json()
+    queryFn: () => {
+      if (client === null) throw new Error('API not connected')
+      return client.agentExecutions()
     },
+    enabled: client !== null,
   })
 
   const executions = executionsData?.executions ?? []

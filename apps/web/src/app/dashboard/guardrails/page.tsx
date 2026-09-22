@@ -1,11 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ROUTES } from '@/constants'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useApi } from '@/components/dashboard/api-provider'
+import { useApiQuery } from '@/hooks/use-api-query'
+import type { GuardrailActionRecord, GuardrailsOverview } from '@/lib/api/types'
 import {
   ShieldCheck,
   ShieldAlert,
@@ -21,26 +24,6 @@ import {
   Layers,
 } from 'lucide-react'
 
-interface ActionDefinition {
-  actionId: string
-  name: string
-  description: string
-  riskLevel: string
-  requiredCapabilities: string[]
-  targetTypes: string[]
-  approvalRequired: boolean
-}
-
-interface GuardrailOverview {
-  totalChecks: number
-  allowed: number
-  denied: number
-  approvalRequired: number
-  averageEvaluationTimeMs: number
-  checksByRiskLevel: { riskLevel: string; count: number }[]
-  recentDecisions: unknown[]
-}
-
 const RISK_COLORS: Record<string, string> = {
   LOW: 'bg-emerald-100 text-emerald-700 border-emerald-200',
   MEDIUM: 'bg-amber-100 text-amber-700 border-amber-200',
@@ -50,50 +33,35 @@ const RISK_COLORS: Record<string, string> = {
 
 export default function GuardrailsPage() {
   const router = useRouter()
-  const [actions, setActions] = useState<ActionDefinition[]>([])
-  const [overview, setOverview] = useState<GuardrailOverview | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { client } = useApi()
   const [testAction, setTestAction] = useState('')
   const [testTargetType, setTestTargetType] = useState('')
   const [testTargetId, setTestTargetId] = useState('')
   const [testResult, setTestResult] = useState<unknown>(null)
   const [testLoading, setTestLoading] = useState(false)
 
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    try {
-      const [actionsRes, overviewRes] = await Promise.allSettled([
-        fetch('/api/v1/guardrails/actions').then((r) => r.json()),
-        fetch('/api/v1/guardrails/overview').then((r) => r.json()),
-      ])
-      if (actionsRes.status === 'fulfilled') setActions(actionsRes.value.actions ?? [])
-      if (overviewRes.status === 'fulfilled') setOverview(overviewRes.value)
-    } catch {
-      // Silently handle — dashboard still renders with defaults.
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void fetchData()
-  }, [fetchData])
+  const actionsQuery = useApiQuery<GuardrailActionRecord[]>(['guardrails-actions'], (api) =>
+    api.guardrailsActions(),
+  )
+  const overviewQuery = useApiQuery<GuardrailsOverview>(['guardrails-overview'], (api) =>
+    api.guardrailsOverview(),
+  )
+  const loading = actionsQuery.isLoading || overviewQuery.isLoading
+  const refresh = () => {
+    void actionsQuery.refetch()
+    void overviewQuery.refetch()
+  }
 
   const runTest = async () => {
-    if (!testAction || !testTargetType) return
+    if (!testAction || !testTargetType || client === null) return
     setTestLoading(true)
     setTestResult(null)
     try {
-      const res = await fetch('/api/v1/guardrails/check-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: testAction,
-          targetType: testTargetType,
-          targetId: testTargetId || null,
-        }),
+      const data = await client.guardrailsCheckAction({
+        action: testAction,
+        targetType: testTargetType,
+        targetId: testTargetId || undefined,
       })
-      const data = await res.json()
       setTestResult(data)
     } catch {
       setTestResult({ error: 'Failed to execute check' })
@@ -101,6 +69,9 @@ export default function GuardrailsPage() {
       setTestLoading(false)
     }
   }
+
+  const actions = actionsQuery.data ?? []
+  const overview = overviewQuery.data ?? null
 
   const totalChecks = overview?.totalChecks ?? 0
   const allowed = overview?.allowed ?? 0
@@ -119,7 +90,7 @@ export default function GuardrailsPage() {
             perform this action?&quot;
           </p>
         </div>
-        <Button variant="outline" onClick={() => void fetchData()} disabled={loading}>
+        <Button variant="outline" onClick={refresh} disabled={loading}>
           <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>

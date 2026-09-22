@@ -6,6 +6,15 @@ import type { AuthorizationContext, DemoBootstrap, DemoUser } from '@/lib/api/ty
 
 const SELECTED_USER_KEY = 'contextgraph.api.user-email'
 
+/**
+ * Demo password for the seeded tenant. The API verifies credentials with
+ * bcrypt; seeded users share this password (see apps/api/prisma/seed.ts).
+ * Override per-environment with NEXT_PUBLIC_DEMO_PASSWORD.
+ */
+function demoPassword(): string {
+  return process.env.NEXT_PUBLIC_DEMO_PASSWORD ?? 'ContextGraph-demo-2026!'
+}
+
 export type ApiStatus = 'booting' | 'ready' | 'error'
 
 export interface ApiContextValue {
@@ -17,6 +26,8 @@ export interface ApiContextValue {
   context: AuthorizationContext | null
   client: ApiClient | null
   error: string | null
+  /** Raw JWT access token (for EventSource streams that cannot send headers). */
+  token: string | null
   selectUser: (user: DemoUser) => Promise<void>
   retry: () => void
 }
@@ -40,6 +51,8 @@ export function ApiProvider({ children }: { children: React.ReactNode }) {
     selectedUser: DemoUser | null
     context: AuthorizationContext | null
     error: string | null
+    /** Raw JWT for auth flows that cannot use headers (EventSource SSE). */
+    token: string | null
   }>({
     status: 'booting',
     bootstrap: null,
@@ -47,6 +60,7 @@ export function ApiProvider({ children }: { children: React.ReactNode }) {
     selectedUser: null,
     context: null,
     error: null,
+    token: null,
   })
 
   const connect = React.useCallback(
@@ -56,7 +70,7 @@ export function ApiProvider({ children }: { children: React.ReactNode }) {
       if (user === undefined) {
         throw new Error('Demo tenant has no active users — run `npm run db:seed`')
       }
-      const login = await client.login(bootstrap.organizationId, user.email)
+      const login = await client.login(bootstrap.organizationId, user.email, demoPassword())
       client.setToken(login.accessToken)
       const context = await client.authorizationContext()
       window.localStorage.setItem(SELECTED_USER_KEY, user.email)
@@ -69,6 +83,7 @@ export function ApiProvider({ children }: { children: React.ReactNode }) {
         selectedUser: user,
         context,
         error: null,
+        token: login.accessToken,
       })
     },
     [],
@@ -121,6 +136,7 @@ export function ApiProvider({ children }: { children: React.ReactNode }) {
       context: state.context,
       client: clientRef.current,
       error: state.error,
+      token: state.token,
       selectUser,
       retry: () => void boot(),
     }),

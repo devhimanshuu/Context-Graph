@@ -20,19 +20,8 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { ROUTES } from '@/constants'
-
-interface GovernanceOverview {
-  totalUsers: number
-  activeUsers: number
-  activeAgents: number
-  activeWorkflows: number
-  activePolicies: number
-  securityEvents: number
-  monthlyCost: number
-  budgetUsage: number
-  failedExecutions: number
-  authorizationDenials: number
-}
+import { useApi } from '@/components/dashboard/api-provider'
+import type { GovernanceOverview } from '@/lib/api/types'
 
 function MetricCard({
   title,
@@ -69,13 +58,14 @@ function MetricCard({
 }
 
 export default function GovernancePage() {
+  const { client } = useApi()
   const { data: overview, isLoading } = useQuery<GovernanceOverview>({
     queryKey: ['governance', 'overview'],
-    queryFn: async () => {
-      const res = await fetch('/api/v1/governance/overview')
-      if (!res.ok) throw new Error('Failed to fetch governance overview')
-      return res.json()
+    queryFn: () => {
+      if (client === null) throw new Error('API not connected')
+      return client.governanceOverview()
     },
+    enabled: client !== null,
   })
 
   return (

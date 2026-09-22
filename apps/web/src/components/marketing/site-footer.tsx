@@ -26,8 +26,6 @@ const FOOTER_COLUMNS: ReadonlyArray<{ heading: string; links: readonly FooterLin
     links: [
       { label: 'Features', href: '#features' },
       { label: 'How it works', href: '#how-it-works' },
-      { label: 'Use cases', href: '#use-cases' },
-      { label: 'Pricing', href: '#pricing' },
       { label: 'Security', href: '#security' },
       { label: 'FAQ', href: '#faq' },
     ],
@@ -81,13 +79,6 @@ export function SiteFooter() {
               <p className="text-muted-foreground max-w-xs text-sm leading-relaxed">
                 The governed context, memory, and guardrail infrastructure layer for AI agents.
               </p>
-              <span className="bg-background/60 text-muted-foreground inline-flex items-center gap-2 rounded-full border px-3 py-1.5 font-mono text-[11px]">
-                <span className="relative flex size-1.5" aria-hidden="true">
-                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
-                </span>
-                All systems operational
-              </span>
             </div>
           </div>
         </Reveal>

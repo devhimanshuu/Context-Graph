@@ -21,6 +21,7 @@ import { EmptyState } from '@/components/dashboard/empty-state'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useApi } from '@/components/dashboard/api-provider'
+import { useApiQuery } from '@/hooks/use-api-query'
 import type {
   EvaluationExperiment,
   EvaluationDataset,
@@ -282,16 +283,37 @@ function StartRunCard({
 export default function EvaluationPage() {
   const { client } = useApi()
 
-  const [experiments, setExperiments] = React.useState<EvaluationExperiment[]>([])
-  const [datasets, setDatasets] = React.useState<EvaluationDataset[]>([])
-  const [runs, setRuns] = React.useState<EvaluationRun[]>([])
-  const [loading, setLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
+  const experimentsQuery = useApiQuery<EvaluationExperiment[]>(['evaluation-experiments'], (api) =>
+    api.evaluationExperiments(),
+  )
+  const datasetsQuery = useApiQuery<EvaluationDataset[]>(['evaluation-datasets'], (api) =>
+    api.evaluationDatasets(),
+  )
+  const runsQuery = useApiQuery<EvaluationRun[]>(['evaluation-runs'], (api) => api.evaluationRuns())
+
+  const experiments = experimentsQuery.data ?? []
+  const datasets = datasetsQuery.data ?? []
+  const runs = runsQuery.data ?? []
+  const loading = experimentsQuery.isLoading || datasetsQuery.isLoading || runsQuery.isLoading
+  const error =
+    experimentsQuery.error?.message ??
+    datasetsQuery.error?.message ??
+    runsQuery.error?.message ??
+    null
 
   // Active run state
   const [activeRun, setActiveRun] = React.useState<EvaluationRun | null>(null)
   const [starting, setStarting] = React.useState(false)
+  const [errorLocal, setErrorLocal] = React.useState<string | null>(null)
   const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Auto-detect an already-active run once the list loads
+  React.useEffect(() => {
+    if (activeRun === null) {
+      const active = runs.find((run) => run.status === 'running' || run.status === 'pending')
+      if (active !== undefined) setActiveRun(active)
+    }
+  }, [runs, activeRun])
 
   // Cleanup polling on unmount
   React.useEffect(() => {
@@ -299,30 +321,6 @@ export default function EvaluationPage() {
       if (pollRef.current !== null) clearInterval(pollRef.current)
     }
   }, [])
-
-  // Load data
-  React.useEffect(() => {
-    if (client === null) return
-    setLoading(true)
-    Promise.all([
-      client.evaluationExperiments().catch(() => []),
-      client.evaluationDatasets().catch(() => []),
-      client.evaluationRuns().catch(() => []),
-    ])
-      .then(([exp, ds, r]) => {
-        setExperiments(exp)
-        setDatasets(ds)
-        setRuns(r)
-
-        // Check if there's already an active run
-        const active = r.find((run) => run.status === 'running' || run.status === 'pending')
-        if (active !== undefined) {
-          setActiveRun(active)
-        }
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load'))
-      .finally(() => setLoading(false))
-  }, [client])
 
   // Poll for active run status
   const startPolling = React.useCallback(
@@ -346,8 +344,7 @@ export default function EvaluationPage() {
             setActiveRun(null)
 
             // Refresh the runs list
-            const refreshed = await client.evaluationRuns().catch(() => [])
-            setRuns(refreshed)
+            void runsQuery.refetch()
           }
         } catch {
           // If the run fetch fails, stop polling
@@ -365,14 +362,14 @@ export default function EvaluationPage() {
     async (experimentId: string, datasetId: string) => {
       if (client === null) return
       setStarting(true)
-      setError(null)
+      setErrorLocal(null)
       try {
         const run = await client.startEvaluationRun(experimentId, datasetId)
         setActiveRun(run)
-        setRuns((prev) => [run, ...prev])
+        void runsQuery.refetch()
         startPolling(run.runId)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to start evaluation run')
+        setErrorLocal(err instanceof Error ? err.message : 'Failed to start evaluation run')
       } finally {
         setStarting(false)
       }
@@ -386,18 +383,16 @@ export default function EvaluationPage() {
       if (client === null) return
       try {
         await client.cancelEvaluationRun(runId)
-        // Update the run in the list
-        setRuns((prev) =>
-          prev.map((r) => (r.runId === runId ? { ...r, status: 'cancelled' as const } : r)),
-        )
+        // Refresh the runs list and clear the active run
+        void runsQuery.refetch()
         setActiveRun(null)
         if (pollRef.current !== null) clearInterval(pollRef.current)
         pollRef.current = null
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to cancel run')
+        setErrorLocal(err instanceof Error ? err.message : 'Failed to cancel run')
       }
     },
-    [client],
+    [client, runsQuery],
   )
 
   // Aggregate metrics from completed runs
@@ -451,12 +446,17 @@ export default function EvaluationPage() {
         </Badge>
       </PageHeader>
 
-      {error !== null && (
+      {(errorLocal ?? error) !== null && (
         <Card>
           <CardContent className="text-destructive flex items-center gap-2 py-4 text-sm">
             <XCircle className="size-4" />
-            {error}
-            <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setError(null)}>
+            {errorLocal ?? error}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto"
+              onClick={() => setErrorLocal(null)}
+            >
               Dismiss
             </Button>
           </CardContent>
@@ -684,19 +684,7 @@ export default function EvaluationPage() {
             </CardDescription>
           </div>
           {!loading && runs.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                if (client === null) return
-                setLoading(true)
-                client
-                  .evaluationRuns()
-                  .then(setRuns)
-                  .catch(() => {})
-                  .finally(() => setLoading(false))
-              }}
-            >
+            <Button variant="ghost" size="sm" onClick={() => void runsQuery.refetch()}>
               <RefreshCw className="size-3.5" />
               Refresh
             </Button>

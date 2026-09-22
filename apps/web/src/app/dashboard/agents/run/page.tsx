@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
+import { useApi } from '@/components/dashboard/api-provider'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -58,6 +59,8 @@ const EVENT_COLORS: Record<string, string> = {
 }
 
 export default function AgentRunPage() {
+  const { client, bootstrap } = useApi()
+  const bootstrapRef = bootstrap
   const [request, setRequest] = useState('')
   const [isRunning, setIsRunning] = useState(false)
   const [result, setResult] = useState<ExecutionResult | null>(null)
@@ -79,22 +82,13 @@ export default function AgentRunPage() {
     setStreamEvents([])
 
     try {
-      // First, start the agent execution
-      const res = await fetch('/api/v1/agents/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userRequest: request.trim(),
-          workspaceId: '00000000-0000-0000-0000-000000000000',
-        }),
-      })
-
-      if (!res.ok) {
-        const errBody = await res.json()
-        throw new Error(errBody.message ?? 'Agent execution failed')
-      }
-
-      const data: ExecutionResult = await res.json()
+      // Start the agent execution via the typed API client
+      if (client === null) throw new Error('API not connected')
+      const bootstrap = bootstrapRef?.workspaceId
+      const data = (await client.runAgent({
+        userRequest: request.trim(),
+        workspaceId: bootstrap ?? '00000000-0000-0000-0000-000000000000',
+      })) as unknown as ExecutionResult
       setResult(data)
 
       // Connect to SSE stream for the execution

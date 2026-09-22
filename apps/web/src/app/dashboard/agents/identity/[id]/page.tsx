@@ -1,10 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useApi } from '@/components/dashboard/api-provider'
 import {
   ArrowLeft,
   Key,
@@ -14,40 +17,8 @@ import {
   AlertTriangle,
   Copy,
   Plus,
+  RefreshCw,
 } from 'lucide-react'
-
-interface AgentIdentity {
-  id: string
-  name: string
-  slug: string
-  description: string | null
-  purpose: string | null
-  environment: string
-  status: string
-  ownerUserId: string | null
-  createdAt: string
-  updatedAt: string
-  lastUsedAt: string | null
-}
-
-interface AgentCredential {
-  id: string
-  name: string
-  type: string
-  status: string
-  keyPrefix: string
-  createdAt: string
-  expiresAt: string | null
-  lastUsedAt: string | null
-  revokedAt: string | null
-}
-
-interface AgentCapability {
-  id: string
-  capability: string
-  grantedAt: string
-  expiresAt: string | null
-}
 
 const ALL_CAPABILITIES = [
   'context.resolve',
@@ -76,144 +47,127 @@ export default function AgentIdentityDetailPage() {
   const params = useParams()
   const router = useRouter()
   const agentId = params.id as string
+  const { client } = useApi()
 
-  const [agent, setAgent] = useState<AgentIdentity | null>(null)
-  const [credentials, setCredentials] = useState<AgentCredential[]>([])
-  const [capabilities, setCapabilities] = useState<AgentCapability[]>([])
-  const [loading, setLoading] = useState(true)
   const [showNewKey, setShowNewKey] = useState<string | null>(null)
   const [newCredName, setNewCredName] = useState('')
   const [creatingCred, setCreatingCred] = useState(false)
   const [grantCap, setGrantCap] = useState('')
   const [showGrantCap, setShowGrantCap] = useState(false)
+  const [busy, setBusy] = useState(false)
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true)
-    try {
-      const [agentRes, credsRes, capsRes] = await Promise.allSettled([
-        fetch(`/api/v1/agents/${agentId}`, {
-          headers: { Authorization: 'Bearer demo-token' },
-        }).then((r) => r.json()),
-        fetch(`/api/v1/agents/${agentId}/credentials`, {
-          headers: { Authorization: 'Bearer demo-token' },
-        }).then((r) => r.json()),
-        fetch(`/api/v1/agents/${agentId}/capabilities`, {
-          headers: { Authorization: 'Bearer demo-token' },
-        }).then((r) => r.json()),
-      ])
-      if (agentRes.status === 'fulfilled') setAgent(agentRes.value.data)
-      if (credsRes.status === 'fulfilled') setCredentials(credsRes.value.data ?? [])
-      if (capsRes.status === 'fulfilled') setCapabilities(capsRes.value.data ?? [])
-    } catch {
-      // silent
-    } finally {
-      setLoading(false)
-    }
-  }, [agentId])
+  const agentQuery = useQuery({
+    queryKey: ['agent-identity', agentId],
+    queryFn: () => {
+      if (client === null) throw new Error('Not signed in')
+      return client.agentIdentityDetail(agentId)
+    },
+    retry: 1,
+    enabled: client !== null,
+  })
 
-  useEffect(() => {
-    void fetchAll()
-  }, [fetchAll])
+  const credentialsQuery = useQuery({
+    queryKey: ['agent-identity', agentId, 'credentials'],
+    queryFn: () => {
+      if (client === null) throw new Error('Not signed in')
+      return client.agentCredentials(agentId)
+    },
+    enabled: client !== null,
+  })
+
+  const capabilitiesQuery = useQuery({
+    queryKey: ['agent-identity', agentId, 'capabilities'],
+    queryFn: () => {
+      if (client === null) throw new Error('Not signed in')
+      return client.agentCapabilities(agentId)
+    },
+    enabled: client !== null,
+  })
+
+  const agent = agentQuery.data ?? null
+  const credentials = credentialsQuery.data ?? []
+  const capabilities = capabilitiesQuery.data ?? []
 
   const handleCreateCredential = async () => {
-    if (!newCredName.trim()) return
+    if (!newCredName.trim() || client === null) return
     setCreatingCred(true)
     try {
-      const res = await fetch(`/api/v1/agents/${agentId}/credentials`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer demo-token' },
-        body: JSON.stringify({ name: newCredName.trim() }),
-      })
-      const data = await res.json()
-      if (data.data?.fullKey) {
-        setShowNewKey(data.data.fullKey)
-      }
+      const created = await client.agentCreateCredential(agentId, { name: newCredName.trim() })
+      setShowNewKey(created.fullKey)
       setNewCredName('')
-      void fetchAll()
-    } catch {
-      // silent
+      toast.success('Credential created — copy the key now, it will not be shown again')
+      void credentialsQuery.refetch()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create credential')
     } finally {
       setCreatingCred(false)
     }
   }
 
   const handleRevokeCredential = async (credentialId: string) => {
+    if (client === null) return
     try {
-      await fetch(`/api/v1/agents/${agentId}/credentials/${credentialId}/revoke`, {
-        method: 'POST',
-        headers: { Authorization: 'Bearer demo-token' },
-      })
-      void fetchAll()
-    } catch {
-      // silent
+      await client.agentRevokeCredential(agentId, credentialId)
+      toast.success('Credential revoked')
+      void credentialsQuery.refetch()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to revoke credential')
+    }
+  }
+
+  const handleRotateCredential = async (credentialId: string) => {
+    if (client === null) return
+    try {
+      const created = await client.agentRotateCredential(agentId, credentialId)
+      setShowNewKey(created.fullKey)
+      toast.success('Credential rotated — copy the new key now')
+      void credentialsQuery.refetch()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to rotate credential')
     }
   }
 
   const handleGrantCapability = async () => {
-    if (!grantCap) return
+    if (!grantCap || client === null) return
     try {
-      await fetch(`/api/v1/agents/${agentId}/capabilities`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer demo-token' },
-        body: JSON.stringify({ capability: grantCap }),
-      })
+      await client.agentGrantCapability(agentId, { capability: grantCap })
       setGrantCap('')
       setShowGrantCap(false)
-      void fetchAll()
-    } catch {
-      // silent
+      toast.success('Capability granted')
+      void capabilitiesQuery.refetch()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to grant capability')
     }
   }
 
   const handleRevokeCapability = async (capability: string) => {
+    if (client === null) return
     try {
-      await fetch(`/api/v1/agents/${agentId}/capabilities/${encodeURIComponent(capability)}`, {
-        method: 'DELETE',
-        headers: { Authorization: 'Bearer demo-token' },
-      })
-      void fetchAll()
-    } catch {
-      // silent
+      await client.agentRevokeCapability(agentId, capability)
+      toast.success('Capability revoked')
+      void capabilitiesQuery.refetch()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to revoke capability')
     }
   }
 
-  const handleSuspend = async () => {
+  const runLifecycle = async (action: 'suspend' | 'revoke' | 'reactivate') => {
+    if (client === null) return
+    setBusy(true)
     try {
-      await fetch(`/api/v1/agents/${agentId}/suspend`, {
-        method: 'POST',
-        headers: { Authorization: 'Bearer demo-token' },
-      })
-      void fetchAll()
-    } catch {
-      // silent
+      if (action === 'suspend') await client.agentIdentitySuspend(agentId)
+      else if (action === 'revoke') await client.agentIdentityRevoke(agentId)
+      else await client.agentIdentityReactivate(agentId)
+      toast.success(`Agent ${action}d`)
+      void agentQuery.refetch()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : `Failed to ${action} agent`)
+    } finally {
+      setBusy(false)
     }
   }
 
-  const handleRevoke = async () => {
-    try {
-      await fetch(`/api/v1/agents/${agentId}/revoke`, {
-        method: 'POST',
-        headers: { Authorization: 'Bearer demo-token' },
-      })
-      void fetchAll()
-    } catch {
-      // silent
-    }
-  }
-
-  const handleReactivate = async () => {
-    try {
-      await fetch(`/api/v1/agents/${agentId}/reactivate`, {
-        method: 'POST',
-        headers: { Authorization: 'Bearer demo-token' },
-      })
-      void fetchAll()
-    } catch {
-      // silent
-    }
-  }
-
-  if (loading) {
+  if (agentQuery.isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="text-muted-foreground">Loading agent...</div>
@@ -221,13 +175,21 @@ export default function AgentIdentityDetailPage() {
     )
   }
 
-  if (agent === null) {
+  if (agentQuery.isError || agent === null) {
     return (
-      <div className="flex h-64 flex-col items-center justify-center gap-2">
-        <p>Agent not found</p>
-        <Button variant="outline" onClick={() => router.back()}>
-          Go Back
-        </Button>
+      <div className="flex h-64 flex-col items-center justify-center gap-3">
+        <p>{agentQuery.isError ? 'Failed to load agent' : 'Agent not found'}</p>
+        <p className="text-muted-foreground max-w-sm text-center text-xs">
+          {agentQuery.error instanceof Error ? agentQuery.error.message : ''}
+        </p>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => void agentQuery.refetch()}>
+            <RefreshCw className="mr-1 h-3 w-3" /> Retry
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => router.back()}>
+            Go Back
+          </Button>
+        </div>
       </div>
     )
   }
@@ -262,17 +224,32 @@ export default function AgentIdentityDetailPage() {
         </div>
         <div className="flex gap-2">
           {agent.status === 'ACTIVE' && (
-            <Button variant="outline" size="sm" onClick={handleSuspend}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => void runLifecycle('suspend')}
+            >
               Suspend
             </Button>
           )}
           {agent.status === 'SUSPENDED' && (
-            <Button variant="outline" size="sm" onClick={handleReactivate}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => void runLifecycle('reactivate')}
+            >
               Reactivate
             </Button>
           )}
           {agent.status !== 'REVOKED' && (
-            <Button variant="destructive" size="sm" onClick={handleRevoke}>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={busy}
+              onClick={() => void runLifecycle('revoke')}
+            >
               Revoke
             </Button>
           )}
@@ -345,8 +322,13 @@ export default function AgentIdentityDetailPage() {
           <CardTitle className="flex items-center gap-2 text-sm">
             <Key className="h-4 w-4" /> Credentials
           </CardTitle>
-          <Button size="sm" variant="outline" onClick={() => setShowGrantCap(false)}>
-            <Plus className="mr-1 h-3 w-3" /> Create Key
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => void credentialsQuery.refetch()}
+            aria-label="Refresh credentials"
+          >
+            <RefreshCw className="h-3 w-3" />
           </Button>
         </CardHeader>
         <CardContent>
@@ -363,7 +345,7 @@ export default function AgentIdentityDetailPage() {
               onClick={() => void handleCreateCredential()}
               disabled={!newCredName.trim() || creatingCred}
             >
-              {creatingCred ? 'Creating...' : 'Create'}
+              {creatingCred ? 'Creating...' : 'Create Key'}
             </Button>
           </div>
           {credentials.length === 0 ? (
@@ -395,14 +377,24 @@ export default function AgentIdentityDetailPage() {
                     </div>
                   </div>
                   {cred.status === 'ACTIVE' && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-red-600"
-                      onClick={() => void handleRevokeCredential(cred.id)}
-                    >
-                      Revoke
-                    </Button>
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7"
+                        onClick={() => void handleRotateCredential(cred.id)}
+                      >
+                        Rotate
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-red-600"
+                        onClick={() => void handleRevokeCredential(cred.id)}
+                      >
+                        Revoke
+                      </Button>
+                    </>
                   )}
                 </div>
               ))}
@@ -459,6 +451,7 @@ export default function AgentIdentityDetailPage() {
                   <button
                     onClick={() => void handleRevokeCapability(cap.capability)}
                     className="ml-1 text-red-400 hover:text-red-600"
+                    aria-label={`Revoke ${cap.capability}`}
                   >
                     <XCircle className="h-3 w-3" />
                   </button>
@@ -483,10 +476,6 @@ export default function AgentIdentityDetailPage() {
             <div>
               <span className="text-muted-foreground">Created: </span>
               {new Date(agent.createdAt).toLocaleString()}
-            </div>
-            <div>
-              <span className="text-muted-foreground">Updated: </span>
-              {new Date(agent.updatedAt).toLocaleString()}
             </div>
             <div>
               <span className="text-muted-foreground">Last Used: </span>

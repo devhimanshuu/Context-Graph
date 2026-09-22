@@ -29,6 +29,7 @@ import {
   Activity,
   Terminal,
   Key,
+  Plug,
 } from 'lucide-react'
 import { ROUTES } from '@/constants'
 
@@ -109,6 +110,12 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         title: 'Agent Identities',
         href: ROUTES.agentIdentities,
         icon: Key,
+        starred: true,
+      },
+      {
+        title: 'API & MCP',
+        href: ROUTES.apiMcp,
+        icon: Plug,
         starred: true,
       },
       {

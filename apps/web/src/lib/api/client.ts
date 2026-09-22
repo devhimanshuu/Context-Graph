@@ -1,8 +1,17 @@
 'use client'
 
 import type {
+  AgentAnalytics,
+  AgentCapabilityRecord,
+  AgentCredentialRecord,
+  AgentExecutionResponse,
+  AgentIdentityRecord,
+  AgentListResponse,
+  ApprovalOverview,
   AiResponse,
   AiStreamEvent,
+  ConversationDetail,
+  ConversationSummary,
   AnalyticsSummary,
   ApiResponse,
   AuditLogEntry,
@@ -11,6 +20,7 @@ import type {
   AuthorizationDecision,
   ContextRule,
   ContextPackage,
+  CreatedCredentialResponse,
   CreateDepartmentInput,
   CreateKnowledgeNodeInput,
   CreateUserInput,
@@ -24,6 +34,12 @@ import type {
   EvaluationDataset,
   EvaluationExperiment,
   EvaluationRun,
+  EventRecord,
+  GovernanceOverview,
+  GovernancePolicyRecord,
+  GuardrailActionRecord,
+  GuardrailDecision,
+  GuardrailsOverview,
   GraphEdge,
   KnowledgeNode,
   LoginResponse,
@@ -31,6 +47,9 @@ import type {
   PermissionProfile,
   PipelineMode,
   PipelineRunRecord,
+  ProposalApprovalRecord,
+  ProposalOverview,
+  ProposalRecord,
   ReachabilityResult,
   RetrievalResult,
   RuleEngineDefinition,
@@ -139,14 +158,54 @@ export class ApiClient {
     })
   }
 
+  patch<T>(path: string, body?: unknown): Promise<T> {
+    return this.request<T>(path, {
+      method: 'PATCH',
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+  }
+
+  /** DELETE that tolerates 204 No Content responses (no body to parse). */
+  async del(path: string): Promise<void> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (this.token !== null) {
+      headers['Authorization'] = `Bearer ${this.token}`
+    }
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: 'DELETE',
+      headers,
+      cache: 'no-store',
+    })
+    if (!response.ok) {
+      const text = await response.text().catch(() => '')
+      let message = `Request failed (${response.status})`
+      let code = 'ERR_UNKNOWN'
+      if (text.length > 0) {
+        try {
+          const parsed = JSON.parse(text) as Extract<ApiResponse<unknown>, { success: false }>
+          message = parsed.error?.message ?? message
+          code = parsed.error?.code ?? code
+        } catch {
+          // Non-JSON error body — keep defaults.
+        }
+      }
+      throw new ApiError(message, code, undefined, response.status)
+    }
+  }
+
   // -- Demo bootstrap (public) ------------------------------------------------
   bootstrap(): Promise<DemoBootstrap> {
     return this.get<DemoBootstrap>('/demo/bootstrap')
   }
 
+  /** Load the starter knowledge set into a workspace (idempotent). */
+  loadStarterKnowledge(workspaceId: string): Promise<{ created: number }> {
+    return this.post<{ created: number }>('/demo/starter-knowledge', { workspaceId })
+  }
+
   // -- Auth -------------------------------------------------------------------
-  login(organizationId: string, email: string): Promise<LoginResponse> {
-    return this.post<LoginResponse>('/auth/login', { organizationId, email })
+  login(organizationId: string, email: string, password: string): Promise<LoginResponse> {
+    return this.post<LoginResponse>('/auth/login', { organizationId, email, password })
   }
 
   // -- Authorization (Phase 5) -------------------------------------------------
@@ -393,33 +452,33 @@ export class ApiClient {
 
   // -- Evaluation (Phase 14) --------------------------------------------------
   evaluationExperiments(): Promise<EvaluationExperiment[]> {
-    return this.get<EvaluationExperiment[]>('/api/v1/evaluations/experiments')
+    return this.get<EvaluationExperiment[]>('/evaluations/experiments')
   }
 
   evaluationDatasets(): Promise<EvaluationDataset[]> {
-    return this.get<EvaluationDataset[]>('/api/v1/evaluations/datasets')
+    return this.get<EvaluationDataset[]>('/evaluations/datasets')
   }
 
   evaluationRuns(experimentId?: string): Promise<EvaluationRun[]> {
     const params =
       experimentId !== undefined ? `?experimentId=${encodeURIComponent(experimentId)}` : ''
-    return this.get<EvaluationRun[]>(`/api/v1/evaluations/runs${params}`)
+    return this.get<EvaluationRun[]>(`/evaluations/runs${params}`)
   }
 
   evaluationRun(runId: string): Promise<EvaluationRun> {
-    return this.get<EvaluationRun>(`/api/v1/evaluations/runs/${runId}`)
+    return this.get<EvaluationRun>(`/evaluations/runs/${runId}`)
   }
 
   startEvaluationRun(experimentId: string, datasetId: string): Promise<EvaluationRun> {
-    return this.post<EvaluationRun>('/api/v1/evaluations/runs', { experimentId, datasetId })
+    return this.post<EvaluationRun>('/evaluations/runs', { experimentId, datasetId })
   }
 
   cancelEvaluationRun(runId: string): Promise<void> {
-    return this.post<void>(`/api/v1/evaluations/runs/${runId}/cancel`)
+    return this.post<void>(`/evaluations/runs/${runId}/cancel`)
   }
 
   evaluationBaselines(): Promise<EvaluationBaseline[]> {
-    return this.get<EvaluationBaseline[]>('/api/v1/evaluations/baselines')
+    return this.get<EvaluationBaseline[]>('/evaluations/baselines')
   }
 
   // -- AI Chat ----------------------------------------------------------------
@@ -533,6 +592,23 @@ export class ApiClient {
     }
   }
 
+  // -- Conversations (persisted chat history) ----------------------------------
+  conversations(limit = 50): Promise<ConversationSummary[]> {
+    return this.get<ConversationSummary[]>(`/conversations?limit=${limit}`)
+  }
+
+  conversation(id: string): Promise<ConversationDetail> {
+    return this.get<ConversationDetail>(`/conversations/${encodeURIComponent(id)}`)
+  }
+
+  renameConversation(id: string, title: string): Promise<void> {
+    return this.patch<void>(`/conversations/${encodeURIComponent(id)}`, { title })
+  }
+
+  deleteConversation(id: string): Promise<void> {
+    return this.del(`/conversations/${encodeURIComponent(id)}`)
+  }
+
   // -- Retrieval (hybrid search) ----------------------------------------------
   retrievalSearch(body: {
     userQuery: string
@@ -544,7 +620,7 @@ export class ApiClient {
     enableSemantic?: boolean
     enableLexical?: boolean
   }): Promise<RetrievalResult> {
-    return this.post<RetrievalResult>('/api/v1/retrieval/search', body)
+    return this.post<RetrievalResult>('/retrieval/search', body)
   }
 
   // -- Agent Playground (MCP tool wrappers) -------------------------------------
@@ -560,7 +636,7 @@ export class ApiClient {
     tokenBudget?: number
     executionMode?: string
   }): Promise<ResolveContextResult> {
-    return this.post<ResolveContextResult>('/api/v1/mcp/resolve-context', body)
+    return this.post<ResolveContextResult>('/mcp/tools/resolve-context', body)
   }
 
   /** MCP check_action — evaluate action authorization. */
@@ -571,7 +647,7 @@ export class ApiClient {
     parameters?: Record<string, unknown>
     purpose?: string
   }): Promise<CheckActionResult> {
-    return this.post<CheckActionResult>('/api/v1/mcp/check-action', body)
+    return this.post<CheckActionResult>('/mcp/tools/check-action', body)
   }
 
   /** MCP propose_node — propose governed knowledge. */
@@ -588,7 +664,7 @@ export class ApiClient {
     purpose?: string
     idempotencyKey?: string
   }): Promise<ProposeNodeResult> {
-    return this.post<ProposeNodeResult>('/api/v1/mcp/propose-node', body)
+    return this.post<ProposeNodeResult>('/mcp/tools/propose-node', body)
   }
 
   /** MCP get_subgraph — inspect authorized graph portion. */
@@ -599,26 +675,249 @@ export class ApiClient {
     direction?: string
     includeMetadata?: boolean
   }): Promise<SubgraphResult> {
-    return this.post<SubgraphResult>('/api/v1/mcp/get-subgraph', body)
+    return this.post<SubgraphResult>('/mcp/tools/get-subgraph', body)
   }
 
   /** MCP get_run — inspect a pipeline run. */
   playgroundGetRun(runId: string): Promise<PipelineRunDetail> {
-    return this.get<PipelineRunDetail>(`/api/v1/mcp/get-run/${encodeURIComponent(runId)}`)
+    return this.get<PipelineRunDetail>(`/mcp/tools/get-run/${encodeURIComponent(runId)}`)
   }
 
   /** MCP replay_run — replay a pipeline execution. */
   playgroundReplayRun(runId: string): Promise<ReplayResult> {
-    return this.post<ReplayResult>(`/api/v1/mcp/replay-run/${encodeURIComponent(runId)}`)
+    return this.post<ReplayResult>(`/mcp/tools/replay-run/${encodeURIComponent(runId)}`)
   }
 
   /** MCP tool list — discover available MCP tools. */
   playgroundTools(): Promise<McpToolInfo[]> {
-    return this.get<McpToolInfo[]>('/api/v1/mcp/tools')
+    return this.get<McpToolInfo[]>('/mcp/tools')
   }
 
   /** MCP session info — current authenticated identity. */
   playgroundSession(): Promise<McpSessionInfo> {
-    return this.get<McpSessionInfo>('/api/v1/mcp/session')
+    return this.get<McpSessionInfo>('/mcp/session')
+  }
+
+  // -- Agent orchestration -------------------------------------------------------------------
+
+  /** List the current user's agent executions. */
+  agentExecutions(): Promise<AgentListResponse> {
+    return this.get<AgentListResponse>('/agents/executions')
+  }
+
+  /** Aggregate agent analytics for the current organization. */
+  agentAnalytics(): Promise<AgentAnalytics> {
+    return this.get<AgentAnalytics>('/agents/analytics')
+  }
+
+  /** Run an agent execution. */
+  runAgent(input: {
+    userRequest: string
+    workspaceId: string
+    entryContext?: string[]
+  }): Promise<AgentExecutionResponse> {
+    return this.post<AgentExecutionResponse>('/agents/run', input)
+  }
+
+  /** List registered agent identities. */
+  agentIdentities(query?: {
+    status?: string
+    environment?: string
+  }): Promise<AgentIdentityRecord[]> {
+    const params = new URLSearchParams()
+    if (query?.status) params.set('status', query.status)
+    if (query?.environment) params.set('environment', query.environment)
+    const qs = params.toString()
+    return this.get<AgentIdentityRecord[]>(`/agents${qs ? `?${qs}` : ''}`)
+  }
+
+  /** Create an agent identity. */
+  createAgentIdentity(input: {
+    organizationId: string
+    name: string
+    slug: string
+    description?: string
+    purpose?: string
+    environment: string
+    ownerUserId?: string
+  }): Promise<AgentIdentityRecord> {
+    return this.post<AgentIdentityRecord>('/agents', input)
+  }
+
+  /** Get one agent identity (tenant-checked). */
+  agentIdentityDetail(id: string): Promise<AgentIdentityRecord> {
+    return this.get<AgentIdentityRecord>(`/agents/${id}`)
+  }
+
+  /** Update an agent identity. */
+  updateAgentIdentity(
+    id: string,
+    input: { name?: string; description?: string; purpose?: string; ownerUserId?: string },
+  ): Promise<AgentIdentityRecord> {
+    return this.patch<AgentIdentityRecord>(`/agents/${id}`, input)
+  }
+
+  agentIdentitySuspend(id: string): Promise<AgentIdentityRecord> {
+    return this.post<AgentIdentityRecord>(`/agents/${id}/suspend`)
+  }
+
+  agentIdentityRevoke(id: string): Promise<AgentIdentityRecord> {
+    return this.post<AgentIdentityRecord>(`/agents/${id}/revoke`)
+  }
+
+  agentIdentityReactivate(id: string): Promise<AgentIdentityRecord> {
+    return this.post<AgentIdentityRecord>(`/agents/${id}/reactivate`)
+  }
+
+  // -- Agent credentials & capabilities -------------------------------------------------
+
+  agentCredentials(agentId: string): Promise<AgentCredentialRecord[]> {
+    return this.get<AgentCredentialRecord[]>(`/agents/${agentId}/credentials`)
+  }
+
+  /** Create a credential. The fullKey is only ever returned here. */
+  agentCreateCredential(
+    agentId: string,
+    input: { name: string; expiresAt?: string },
+  ): Promise<CreatedCredentialResponse> {
+    return this.post<CreatedCredentialResponse>(`/agents/${agentId}/credentials`, input)
+  }
+
+  agentRevokeCredential(agentId: string, credentialId: string): Promise<{ revoked: boolean }> {
+    return this.post<{ revoked: boolean }>(`/agents/${agentId}/credentials/${credentialId}/revoke`)
+  }
+
+  agentRotateCredential(agentId: string, credentialId: string): Promise<CreatedCredentialResponse> {
+    return this.post<CreatedCredentialResponse>(
+      `/agents/${agentId}/credentials/${credentialId}/rotate`,
+    )
+  }
+
+  agentCapabilities(agentId: string): Promise<AgentCapabilityRecord[]> {
+    return this.get<AgentCapabilityRecord[]>(`/agents/${agentId}/capabilities`)
+  }
+
+  agentGrantCapability(
+    agentId: string,
+    input: { capability: string; expiresAt?: string },
+  ): Promise<AgentCapabilityRecord> {
+    return this.post<AgentCapabilityRecord>(`/agents/${agentId}/capabilities`, input)
+  }
+
+  agentRevokeCapability(agentId: string, capability: string): Promise<void> {
+    return this.del(`/agents/${agentId}/capabilities/${encodeURIComponent(capability)}`)
+  }
+
+  // -- Governance ------------------------------------------------------------------------------
+
+  /** Executive governance overview (users, agents, policies, costs, security). */
+  governanceOverview(): Promise<GovernanceOverview> {
+    return this.get<GovernanceOverview>('/governance/overview')
+  }
+
+  /** List governance policies. */
+  governancePolicies(): Promise<GovernancePolicyRecord[]> {
+    return this.get<GovernancePolicyRecord[]>('/governance/policies')
+  }
+
+  /** Publish a governance policy. */
+  publishGovernancePolicy(policyId: string): Promise<GovernancePolicyRecord> {
+    return this.post<GovernancePolicyRecord>(`/governance/policies/${policyId}/publish`)
+  }
+
+  /** Create a governance policy. */
+  createGovernancePolicy(input: {
+    name: string
+    type: string
+    configuration?: Record<string, unknown>
+  }): Promise<GovernancePolicyRecord> {
+    return this.post<GovernancePolicyRecord>('/governance/policies', input)
+  }
+
+  // -- Guardrails --------------------------------------------------------------------------------
+
+  /** Guardrails overview + recent action checks. */
+  /** Registered guardrail actions (API wraps the list in { actions }). */
+  async guardrailsActions(): Promise<GuardrailActionRecord[]> {
+    const body = await this.get<{ actions: GuardrailActionRecord[] }>('/guardrails/actions')
+    return body.actions ?? []
+  }
+
+  guardrailsOverview(): Promise<GuardrailsOverview> {
+    return this.get<GuardrailsOverview>('/guardrails/overview')
+  }
+
+  /** Evaluate an action against the guardrails pipeline. */
+  guardrailsCheckAction(input: {
+    action: string
+    targetType: string
+    targetId?: string
+    parameters?: Record<string, unknown>
+    purpose?: string
+  }): Promise<GuardrailDecision> {
+    return this.post<GuardrailDecision>('/guardrails/check-action', input)
+  }
+
+  // -- Events / outbox ------------------------------------------------------------------------------
+
+  /** List domain events with optional filters. */
+  events(query?: {
+    eventType?: string
+    aggregateType?: string
+    limit?: number
+    offset?: number
+  }): Promise<EventRecord[]> {
+    const params = new URLSearchParams()
+    if (query?.eventType !== undefined) params.set('eventType', query.eventType)
+    if (query?.aggregateType !== undefined) params.set('aggregateType', query.aggregateType)
+    if (query?.limit !== undefined) params.set('limit', String(query.limit))
+    if (query?.offset !== undefined) params.set('offset', String(query.offset))
+    const qs = params.toString()
+    return this.get<EventRecord[]>(qs === '' ? '/events' : `/events?${qs}`)
+  }
+
+  // -- Node proposals + writeback ---------------------------------------------------------------------
+
+  /** Node proposal overview (counts by status). */
+  proposalOverview(): Promise<ProposalOverview> {
+    return this.get<ProposalOverview>('/knowledge/proposals/overview')
+  }
+
+  /** List node proposals. */
+  proposals(query?: { status?: string; limit?: number }): Promise<ProposalRecord[]> {
+    const params = new URLSearchParams()
+    if (query?.status !== undefined) params.set('status', query.status)
+    if (query?.limit !== undefined) params.set('limit', String(query.limit))
+    const qs = params.toString()
+    return this.get<ProposalRecord[]>(
+      qs === '' ? '/knowledge/proposals' : `/knowledge/proposals?${qs}`,
+    )
+  }
+
+  /** List proposal approval requests. */
+  proposalApprovals(query?: {
+    status?: string
+    limit?: number
+  }): Promise<ProposalApprovalRecord[]> {
+    const params = new URLSearchParams()
+    if (query?.status !== undefined) params.set('status', query.status)
+    if (query?.limit !== undefined) params.set('limit', String(query.limit))
+    const qs = params.toString()
+    return this.get<ProposalApprovalRecord[]>(
+      qs === '' ? '/proposals/approvals' : `/proposals/approvals?${qs}`,
+    )
+  }
+
+  /** Resolve (approve/reject) a proposal approval request. */
+  resolveProposalApproval(
+    approvalId: string,
+    input: { decision: 'APPROVED' | 'REJECTED'; note?: string },
+  ): Promise<{ success: boolean }> {
+    return this.post<{ success: boolean }>(`/proposals/approvals/${approvalId}/resolve`, input)
+  }
+
+  /** Approval overview (pending counts, SLA breaches). */
+  proposalApprovalOverview(): Promise<ApprovalOverview> {
+    return this.get<ApprovalOverview>('/proposals/approvals/overview')
   }
 }

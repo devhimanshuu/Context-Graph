@@ -843,22 +843,57 @@ export interface AiChatRequest {
 }
 
 export interface AiCitation {
+  index: number
   nodeId: string
-  nodeTitle: string
-  score: number
-  claim: string
-  excerpt: string
+  title: string
+  source: string
+  valid: boolean
+  validationError: string | null
 }
 
 export interface AiResponse {
   answer: string
   citations: AiCitation[]
-  contextSize: number
-  tokensUsed: number
   model: string
   provider: string
+  usage: { inputTokens: number; outputTokens: number; totalTokens: number; estimatedCost: number }
+  contextVersion: string
+  contextHash: string
+  promptHash: string
   latencyMs: number
+  requestId: string
+  pipelineVersion: string
+  conversationId?: string | null
+}
+
+// ---------------------------------------------------------------------------
+// Persisted conversations (chat history)
+// ---------------------------------------------------------------------------
+
+export interface ConversationSummary {
+  id: string
+  title: string
+  workspaceId: string | null
+  messageCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface StoredChatMessage {
+  id: string
   conversationId: string
+  role: 'USER' | 'ASSISTANT' | 'SYSTEM'
+  content: string
+  citations: ReadonlyArray<{ index: number; nodeId: string; title: string }>
+  metadata: Record<string, unknown>
+  createdAt: string
+}
+
+export interface ConversationDetail {
+  id: string
+  title: string
+  workspaceId: string | null
+  messages: StoredChatMessage[]
 }
 
 // ---------------------------------------------------------------------------
@@ -928,4 +963,242 @@ export interface WorkspaceSettings {
   workspaceId: string
   name: string
   configuration: Record<string, unknown>
+}
+
+// ---------------------------------------------------------------------------
+// Agent orchestration
+// ---------------------------------------------------------------------------
+
+export interface AgentExecution {
+  executionId: string
+  status: string
+  userRequest: string
+  finalResponse: string | null
+  iterations: number
+  toolCalls: number
+  inputTokens: number
+  outputTokens: number
+  estimatedCost: number
+  durationMs: number
+  error: string | null
+  createdAt: string
+  completedAt: string | null
+}
+
+export interface AgentAnalytics {
+  totalExecutions: number
+  completedExecutions: number
+  failedExecutions: number
+  completionRate: number
+  averageDurationMs: number
+  averageIterations: number
+  averageToolCalls: number
+  totalToolCalls: number
+  policyDenials: number
+  totalInputTokens: number
+  totalOutputTokens: number
+  estimatedTotalCost: number
+  verificationFailures: number
+}
+
+export interface AgentListResponse {
+  executions: AgentExecution[]
+  total: number
+}
+
+export interface AgentExecutionResponse {
+  executionId: string
+  status: string
+  userRequest: string
+  finalResponse: string | null
+  iterations: number
+  toolCalls: number
+  inputTokens: number
+  outputTokens: number
+  estimatedCost: number
+  durationMs: number
+  error: string | null
+  createdAt: string
+  completedAt: string | null
+}
+
+export interface AgentIdentityRecord {
+  id: string
+  name: string
+  slug: string
+  description: string | null
+  purpose?: string | null
+  environment: string
+  status: string
+  ownerUserId: string | null
+  createdAt: string
+  updatedAt?: string
+  lastUsedAt: string | null
+}
+
+/** A credential as listed by GET /agents/:id/credentials (keyHash is never exposed). */
+export interface AgentCredentialRecord {
+  id: string
+  agentIdentityId: string
+  name: string
+  type: string
+  status: string
+  keyPrefix: string
+  createdAt: string
+  expiresAt: string | null
+  lastUsedAt: string | null
+  revokedAt: string | null
+}
+
+/** One-time reveal from POST /agents/:id/credentials — fullKey is never retrievable again. */
+export interface CreatedCredentialResponse {
+  credential: AgentCredentialRecord
+  secret: string
+  fullKey: string
+}
+
+export interface AgentCapabilityRecord {
+  id: string
+  agentIdentityId: string
+  capability: string
+  grantedAt: string
+  expiresAt: string | null
+}
+
+// ---------------------------------------------------------------------------
+// Governance
+// ---------------------------------------------------------------------------
+
+export interface GovernanceOverview {
+  totalUsers: number
+  activeUsers: number
+  activeAgents: number
+  activeWorkflows: number
+  activePolicies: number
+  securityEvents: number
+  monthlyCost: number
+  budgetUsage: number
+  failedExecutions: number
+  authorizationDenials: number
+}
+
+export interface GovernancePolicyRecord {
+  id: string
+  name: string
+  type: string
+  status: string
+  configuration: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+}
+
+// ---------------------------------------------------------------------------
+// Guardrails
+// ---------------------------------------------------------------------------
+
+/** A registered guardrail action (GET /guardrails/actions). */
+export interface GuardrailActionRecord {
+  actionId: string
+  name: string
+  description: string
+  riskLevel: string
+  requiredCapabilities: string[]
+  targetTypes: string[]
+  approvalRequired: boolean
+}
+
+/** Guardrail dashboard overview (GET /guardrails/overview). */
+export interface GuardrailsOverview {
+  totalChecks: number
+  allowed: number
+  denied: number
+  approvalRequired: number
+  averageEvaluationTimeMs: number
+  checksByRiskLevel: { riskLevel: string; count: number }[]
+  recentDecisions: unknown[]
+}
+
+export interface GuardrailDecision {
+  allowed: boolean
+  decision: string
+  action: string
+  targetType: string
+  targetId: string | null
+  riskLevel: string
+  reasonCode: string | null
+  explanation: string
+  violatedPolicies: string[]
+  approvalRequired: boolean
+  approvalReason: string | null
+}
+
+// ---------------------------------------------------------------------------
+// Events (outbox)
+// ---------------------------------------------------------------------------
+
+/** Shape returned by GET /events — matches the DomainEventEnvelope contract. */
+export interface EventRecord {
+  eventId: string
+  eventType: string
+  eventVersion: number
+  organizationId: string
+  aggregateType: string
+  aggregateId: string
+  actorId: string | null
+  source: string
+  correlationId: string | null
+  timestamp: string
+  payload: Record<string, unknown>
+  classification: string
+}
+
+// ---------------------------------------------------------------------------
+// Node proposals + approvals (writeback)
+// ---------------------------------------------------------------------------
+
+export interface ProposalOverview {
+  totalProposals: number
+  pendingProposals: number
+  approvedProposals: number
+  rejectedProposals: number
+  publishedProposals: number
+}
+
+export interface ProposalRecord {
+  id: string
+  title: string
+  nodeType: string
+  status: string
+  classification: string
+  proposedBy: string | null
+  createdAt: string
+}
+
+/** Approval request as returned by GET /approvals — matches ApprovalRequestEntity. */
+export interface ProposalApprovalRecord {
+  id: string
+  organizationId: string
+  proposalId: string
+  requestedAction: string
+  nodeType: string
+  title: string
+  content: string
+  classification: string
+  proposedById: string | null
+  agentIdentityId: string | null
+  status: string
+  resolvedById: string | null
+  resolutionNote: string | null
+  publishedNodeId: string | null
+  createdAt: string
+  resolvedAt: string | null
+  expiresAt: string | null
+}
+
+export interface ApprovalOverview {
+  pendingApprovals: number
+  approvedToday: number
+  rejectedToday: number
+  expiredApprovals: number
+  averageDecisionTimeMs: number
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import { useApi } from '@/components/dashboard/api-provider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -60,6 +61,7 @@ const STATUS_ICON: Record<string, React.ElementType> = {
 }
 
 export default function MultiAgentPage() {
+  const { client } = useApi()
   const [userRequest, setUserRequest] = useState(
     "Investigate the recent production incident and determine whether we can publish a new deployment decision based on the organization's policy.",
   )
@@ -70,36 +72,24 @@ export default function MultiAgentPage() {
   const [copied, setCopied] = useState(false)
 
   const handleRun = useCallback(async () => {
-    if (!userRequest.trim()) return
+    if (!userRequest.trim() || client === null) return
     setRunning(true)
     setError(null)
     setResult(null)
 
     try {
-      const res = await fetch('/api/v1/reference-agents/run', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer demo-token',
-        },
-        body: JSON.stringify({
-          query: userRequest.trim(),
-          action: 'PUBLISH_KNOWLEDGE',
-          targetType: 'KNOWLEDGE_NODE',
-        }),
+      const data = await client.post<ReferenceRunResult>('/reference-agents/run', {
+        query: userRequest.trim(),
+        action: 'PUBLISH_KNOWLEDGE',
+        targetType: 'KNOWLEDGE_NODE',
       })
-      const data = await res.json()
-      if (data.success) {
-        setResult(data.data)
-      } else {
-        setError(data.error?.message ?? 'Request failed')
-      }
+      setResult(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed')
     } finally {
       setRunning(false)
     }
-  }, [userRequest])
+  }, [client, userRequest])
 
   const handleCopy = useCallback(() => {
     if (result === null) return

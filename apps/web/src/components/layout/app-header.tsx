@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { DemoUserSwitcher } from '@/components/dashboard/demo-user-switcher'
 import type { SessionUser } from '@/lib/auth/types'
 import { Breadcrumbs } from './breadcrumbs'
+import { BudgetUsageWarning } from './budget-usage-warning'
 import { CommandMenu } from './command-menu'
 import { ThemeToggle } from './theme-toggle'
 import { UserMenu } from './user-menu'
@@ -29,6 +30,7 @@ export function AppHeader({ user }: { user: SessionUser }) {
       <Breadcrumbs />
 
       <div className="ml-auto flex items-center gap-1">
+        <BudgetUsageWarning />
         <CommandMenu />
         <DemoUserSwitcher />
         <ThemeToggle />

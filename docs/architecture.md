@@ -1,5 +1,11 @@
 # ContextGraph — Architecture
 
+> **Historical note:** Sections 1–6 below describe the Phase 1 Next.js-only
+> application layout. The backend has since been rebuilt as a NestJS modular
+> monolith (`apps/api`) with the Next.js app (`apps/web`) as its dashboard —
+> see [`docs/backend-nestjs.md`](backend-nestjs.md) for the current backend
+> architecture and [`../README.md`](../README.md) for the repository layout.
+
 ## 1. High-level architecture
 
 ContextGraph is a **layered, feature-first, clean architecture** application

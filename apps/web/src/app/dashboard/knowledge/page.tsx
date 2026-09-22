@@ -161,6 +161,43 @@ export default function KnowledgePage() {
     })
   }, [nodeList, query, typeFilter, statusFilter, departmentFilter, tagFilter, showArchived])
 
+  const [sortKey, setSortKey] = React.useState<string | null>(null)
+  const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('asc')
+  const toggleSort = (key: string) => {
+    if (sortKey !== key) {
+      setSortKey(key)
+      setSortDir('asc')
+    } else {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    }
+  }
+  const sorted = React.useMemo(() => {
+    if (sortKey === null) return filtered
+    const dir = sortDir === 'asc' ? 1 : -1
+    return [...filtered].sort((a, b) => {
+      switch (sortKey) {
+        case 'title':
+          return a.title.localeCompare(b.title) * dir
+        case 'type':
+          return a.type.localeCompare(b.type) * dir
+        case 'status':
+          return a.status.localeCompare(b.status) * dir
+        case 'importance':
+          return (a.importance - b.importance) * dir
+        case 'department':
+          return (
+            (departmentNameById.get(a.departmentId ?? '') ?? '').localeCompare(
+              departmentNameById.get(b.departmentId ?? '') ?? '',
+            ) * dir
+          )
+        case 'updated':
+          return (new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()) * dir
+        default:
+          return 0
+      }
+    })
+  }, [filtered, sortKey, sortDir, departmentNameById])
+
   const openCreate = () => {
     setEditingNode(null)
     setForm(EMPTY_FORM)
@@ -354,18 +391,58 @@ export default function KnowledgePage() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 sticky top-0 z-10">
                   <tr className="text-muted-foreground border-b text-left text-xs">
-                    <th className="px-3 py-2.5 font-medium">Node</th>
-                    <th className="px-3 py-2.5 font-medium">Type</th>
-                    <th className="px-3 py-2.5 font-medium">Status</th>
-                    <th className="px-3 py-2.5 font-medium">Importance</th>
+                    {(
+                      [
+                        ['Node', 'title'],
+                        ['Type', 'type'],
+                        ['Status', 'status'],
+                        ['Importance', 'importance'],
+                      ] as const
+                    ).map(([label, key]) => (
+                      <th key={key} className="px-3 py-2.5 font-medium">
+                        <button
+                          type="button"
+                          onClick={() => toggleSort(key)}
+                          className="hover:text-foreground inline-flex items-center gap-1 transition-colors"
+                          aria-label={`Sort by ${label}`}
+                        >
+                          {label}
+                          {sortKey === key && (
+                            <span aria-hidden="true" className="text-[9px]">
+                              {sortDir === 'asc' ? '▲' : '▼'}
+                            </span>
+                          )}
+                        </button>
+                      </th>
+                    ))}
                     <th className="px-3 py-2.5 font-medium">Tags</th>
-                    <th className="px-3 py-2.5 font-medium">Department</th>
-                    <th className="px-3 py-2.5 font-medium">Updated</th>
+                    {(
+                      [
+                        ['Department', 'department'],
+                        ['Updated', 'updated'],
+                      ] as const
+                    ).map(([label, key]) => (
+                      <th key={key} className="px-3 py-2.5 font-medium">
+                        <button
+                          type="button"
+                          onClick={() => toggleSort(key)}
+                          className="hover:text-foreground inline-flex items-center gap-1 transition-colors"
+                          aria-label={`Sort by ${label}`}
+                        >
+                          {label}
+                          {sortKey === key && (
+                            <span aria-hidden="true" className="text-[9px]">
+                              {sortDir === 'asc' ? '▲' : '▼'}
+                            </span>
+                          )}
+                        </button>
+                      </th>
+                    ))}
                     <th className="pb-2 text-right font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((node) => (
+                  {sorted.map((node) => (
                     <tr
                       key={node.id}
                       onClick={() => setSelectedNodeId(node.id)}

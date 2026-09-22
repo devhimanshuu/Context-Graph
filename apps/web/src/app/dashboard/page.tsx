@@ -2,6 +2,8 @@
 
 import * as React from 'react'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import {
   ArrowUpRight,
   Boxes,
@@ -12,10 +14,12 @@ import {
   Gauge,
   GitBranch,
   Library,
+  LoaderCircle,
   Play,
   Search,
   ShieldCheck,
   Sparkles,
+  Wand2,
   Waypoints,
   Bot,
 } from 'lucide-react'
@@ -123,8 +127,10 @@ const SETUP_STEPS = [
 // Main page
 // ---------------------------------------------------------------------------
 export default function OverviewPage() {
-  const { context, selectedUser, bootstrap } = useApi()
+  const { context, selectedUser, bootstrap, client } = useApi()
+  const queryClient = useQueryClient()
   const workspaceId = bootstrap?.workspaceId ?? null
+  const [loadingDemo, setLoadingDemo] = React.useState(false)
 
   const nodes = useApiQuery<number>(['overview-node-count', workspaceId ?? 'none'], async (api) =>
     workspaceId === null ? 0 : (await api.knowledgeNodes(workspaceId)).length,
@@ -166,6 +172,25 @@ export default function OverviewPage() {
     false, // playground requires MCP
   ]
   const progress = Math.round((completedSteps.filter(Boolean).length / SETUP_STEPS.length) * 100)
+
+  const handleLoadDemoData = async () => {
+    if (client === null || workspaceId === null || loadingDemo) return
+    setLoadingDemo(true)
+    try {
+      const result = await client.loadStarterKnowledge(workspaceId)
+      toast.success(
+        result.created > 0
+          ? `Added ${result.created} starter knowledge nodes`
+          : 'Starter knowledge already loaded',
+      )
+      void queryClient.invalidateQueries({ queryKey: ['overview-node-count'] })
+      void queryClient.invalidateQueries({ queryKey: ['knowledge-nodes'] })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load demo data')
+    } finally {
+      setLoadingDemo(false)
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -275,7 +300,20 @@ export default function OverviewPage() {
                   Quick actions
                 </p>
                 <div className="space-y-2">
-                  <Button asChild size="sm" className="w-full justify-start">
+                  <Button
+                    size="sm"
+                    className="w-full justify-start"
+                    disabled={loadingDemo}
+                    onClick={() => void handleLoadDemoData()}
+                  >
+                    {loadingDemo ? (
+                      <LoaderCircle className="mr-1.5 size-3.5 animate-spin" />
+                    ) : (
+                      <Wand2 className="mr-1.5 size-3.5" />
+                    )}
+                    Load demo knowledge
+                  </Button>
+                  <Button asChild size="sm" variant="outline" className="w-full justify-start">
                     <Link href={ROUTES.knowledge}>
                       <Library className="mr-1.5 size-3.5" />
                       Add knowledge
@@ -314,7 +352,6 @@ export default function OverviewPage() {
           icon={Waypoints}
           hint="In this workspace"
           variant="primary"
-          trend={(nodes.data ?? 0) > 0 ? { value: '+12%', positive: true } : undefined}
         />
         <MetricCard
           label="Relationships"
@@ -322,7 +359,6 @@ export default function OverviewPage() {
           icon={Boxes}
           hint="Typed graph edges"
           variant="primary"
-          trend={(edges.data ?? 0) > 0 ? { value: '+8%', positive: true } : undefined}
         />
         <MetricCard
           label="Active rules"

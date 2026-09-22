@@ -6,6 +6,7 @@ import {
   LoaderCircle,
   Pencil,
   Plus,
+  Search,
   ShieldCheck,
   Trash2,
   Users as UsersIcon,
@@ -29,6 +30,7 @@ import { PageHeader } from '@/components/dashboard/page-header'
 import { TableSkeleton } from '@/components/ui/table-skeleton'
 import { useApi } from '@/components/dashboard/api-provider'
 import { useDepartments, useUsers } from '@/hooks/use-api-query'
+import { useTableControls } from '@/hooks/use-table-controls'
 import type { UserRecord } from '@/lib/api/types'
 
 const ROLES = ['ADMIN', 'HOD', 'EDITOR', 'VIEWER', 'QUALITY', 'AUDITOR'] as const
@@ -130,7 +132,35 @@ export default function UsersPage() {
   }
 
   const canManage = selectedUser?.role === 'ADMIN' || selectedUser?.role === 'HOD'
-  const userList = users.data ?? []
+  const rawUserList = users.data ?? []
+  const departmentNameById = React.useMemo(
+    () => new Map(departmentList.map((d) => [d.id, d.name])),
+    [departmentList],
+  )
+  const controls = useTableControls<UserRecord>(rawUserList, {
+    searchFields: ['name', 'email', 'role', 'permissionLevel', 'complianceClearance'],
+    initialSortKey: 'name',
+    sortValues: {
+      department: (row) => departmentNameById.get(row.departmentId ?? '') ?? '',
+    },
+  })
+  const { query, setQuery, sortKey, sortDir, toggleSort, rows: userList } = controls
+
+  const sortableHeader = (label: string, key: string): React.ReactNode => (
+    <button
+      type="button"
+      onClick={() => toggleSort(key)}
+      className="hover:text-foreground inline-flex items-center gap-1 transition-colors"
+      aria-label={`Sort by ${label}`}
+    >
+      {label}
+      {sortKey === key && (
+        <span aria-hidden="true" className="text-[9px]">
+          {sortDir === 'asc' ? '▲' : '▼'}
+        </span>
+      )}
+    </button>
+  )
 
   return (
     <div className="space-y-6">
@@ -152,6 +182,17 @@ export default function UsersPage() {
               ? 'Create, edit, or deactivate members. Changes recompile the authorization context on next request.'
               : 'Viewing only — user management requires ADMIN or HOD.'}
           </CardDescription>
+          <div className="relative mt-2">
+            <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search by name, email, role…"
+              className="border-input bg-background placeholder:text-muted-foreground h-9 w-full rounded-md border pl-9 text-sm focus-visible:ring-2 focus-visible:outline-none"
+              aria-label="Search users"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {users.isPending ? (
@@ -167,12 +208,20 @@ export default function UsersPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-muted-foreground border-b text-left text-xs">
-                    <th className="pr-4 pb-2 font-medium">Name</th>
-                    <th className="pr-4 pb-2 font-medium">Role</th>
-                    <th className="pr-4 pb-2 font-medium">Level</th>
-                    <th className="pr-4 pb-2 font-medium">Clearance</th>
-                    <th className="pr-4 pb-2 font-medium">Department</th>
-                    <th className="pr-4 pb-2 font-medium">Status</th>
+                    <th className="pr-4 pb-2 font-medium">{sortableHeader('Name', 'name')}</th>
+                    <th className="pr-4 pb-2 font-medium">{sortableHeader('Role', 'role')}</th>
+                    <th className="pr-4 pb-2 font-medium">
+                      {sortableHeader('Level', 'permissionLevel')}
+                    </th>
+                    <th className="pr-4 pb-2 font-medium">
+                      {sortableHeader('Clearance', 'complianceClearance')}
+                    </th>
+                    <th className="pr-4 pb-2 font-medium">
+                      {sortableHeader('Department', 'department')}
+                    </th>
+                    <th className="pr-4 pb-2 font-medium">
+                      {sortableHeader('Status', 'isActive')}
+                    </th>
                     <th className="pb-2 text-right font-medium">Actions</th>
                   </tr>
                 </thead>

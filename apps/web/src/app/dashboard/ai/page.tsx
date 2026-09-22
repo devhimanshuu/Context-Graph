@@ -10,15 +10,23 @@ import {
   Sparkles,
   Square,
   Zap,
+  History,
+  Plus,
+  Trash2,
+  Pencil,
+  MessageSquare,
 } from 'lucide-react'
+import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { useApi } from '@/components/dashboard/api-provider'
+import { useApiQuery } from '@/hooks/use-api-query'
 import { useKnowledgeNodes } from '@/hooks/use-api-query'
-import type { AiCitation, AiResponse } from '@/lib/api/types'
+import type { AiResponse, ConversationSummary, StoredChatMessage } from '@/lib/api/types'
 
 // ---------------------------------------------------------------------------
 // Streaming cursor — animated blinking bar shown during token generation
@@ -29,6 +37,28 @@ function StreamingCursor() {
       className="inline-block w-0.5 animate-pulse bg-current align-middle"
       style={{ height: '1.1em' }}
     />
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Citation deep-link — jumps to the knowledge node detail page
+// ---------------------------------------------------------------------------
+function CitationChip({ citation }: { citation: { nodeId: string; title: string } }) {
+  return (
+    <a
+      href={`/dashboard/knowledge-graph?focus=${encodeURIComponent(citation.nodeId)}`}
+      className="bg-background/50 hover:bg-background flex items-start gap-2 rounded-md px-2 py-1.5 text-xs transition-colors"
+      title={`Open ${citation.title}`}
+    >
+      <Badge variant="outline" className="mt-0.5 shrink-0 text-[9px]">
+        source
+      </Badge>
+      <span className="min-w-0">
+        <span className="block truncate font-medium underline-offset-2 group-hover:underline">
+          {citation.title}
+        </span>
+      </span>
+    </a>
   )
 }
 
@@ -46,7 +76,7 @@ function ChatBubble({
 }: {
   role: 'user' | 'assistant'
   content: string
-  citations?: AiCitation[]
+  citations?: ReadonlyArray<{ nodeId: string; title: string }>
   latencyMs?: number
   model?: string
   streaming?: boolean
@@ -73,20 +103,7 @@ function ChatBubble({
               Citations
             </p>
             {citations.map((citation) => (
-              <div
-                key={`${citation.nodeId}-${citation.score}`}
-                className="bg-background/50 flex items-start gap-2 rounded-md px-2 py-1.5 text-xs"
-              >
-                <Badge variant="outline" className="mt-0.5 shrink-0 text-[9px]">
-                  {(citation.score * 100).toFixed(0)}%
-                </Badge>
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{citation.nodeTitle}</p>
-                  {citation.claim !== '' && (
-                    <p className="text-muted-foreground truncate">{citation.claim}</p>
-                  )}
-                </div>
-              </div>
+              <CitationChip key={`${citation.nodeId}`} citation={citation} />
             ))}
           </div>
         )}
@@ -112,11 +129,25 @@ function ChatBubble({
   )
 }
 
+/** Maps a persisted message to the bubble shape. */
+function storedToBubble(message: StoredChatMessage) {
+  return {
+    role: message.role === 'USER' ? ('user' as const) : ('assistant' as const),
+    content: message.content,
+    citations: message.role === 'ASSISTANT' ? message.citations : undefined,
+    tokenCount:
+      message.role === 'ASSISTANT' && typeof message.metadata.totalTokens === 'number'
+        ? (message.metadata.totalTokens as number)
+        : undefined,
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 export default function AiChatPage() {
   const { client, bootstrap, status } = useApi()
+  const queryClient = useQueryClient()
   const workspaceId = bootstrap?.workspaceId ?? null
   const nodes = useKnowledgeNodes(workspaceId)
   const nodeList = React.useMemo(() => nodes.data ?? [], [nodes.data])
@@ -127,7 +158,7 @@ export default function AiChatPage() {
     {
       role: 'user' | 'assistant'
       content: string
-      citations?: AiCitation[]
+      citations?: ReadonlyArray<{ nodeId: string; title: string }>
       latencyMs?: number
       model?: string
       tokenCount?: number
@@ -138,8 +169,19 @@ export default function AiChatPage() {
   const [error, setError] = React.useState<string | null>(null)
   const [conversationId, setConversationId] = React.useState<string | null>(null)
   const [streamTokenCount, setStreamTokenCount] = React.useState(0)
+  const [renamingId, setRenamingId] = React.useState<string | null>(null)
+  const [renameValue, setRenameValue] = React.useState('')
   const abortRef = React.useRef<AbortController | null>(null)
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
+
+  // Persisted conversation list — invalidated after each completed turn.
+  const conversationsQuery = useApiQuery<ConversationSummary[]>(
+    ['conversations'],
+    (api) => api.conversations(50),
+    {
+      staleTime: 5_000,
+    },
+  )
 
   // Auto-scroll during streaming
   React.useEffect(() => {
@@ -152,6 +194,10 @@ export default function AiChatPage() {
       setEntryNodeId(nodeList[0]?.id ?? '')
     }
   }, [nodeList, entryNodeId])
+
+  const invalidateConversations = React.useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ['conversations'] })
+  }, [queryClient])
 
   // Stop streaming
   const stopStreaming = React.useCallback(() => {
@@ -189,10 +235,6 @@ export default function AiChatPage() {
         entryNodeId,
         workspaceId,
         conversationId: conversationId ?? undefined,
-        conversationHistory: messages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
       })
 
       for await (const event of generator) {
@@ -203,7 +245,9 @@ export default function AiChatPage() {
           setStreamTokenCount(tokenCount)
         } else if (event.type === 'done') {
           finalResult = event.result
-          setConversationId(event.result.conversationId)
+          if (event.result.conversationId) {
+            setConversationId(event.result.conversationId)
+          }
         } else if (event.type === 'error') {
           setError(event.error)
         }
@@ -216,10 +260,10 @@ export default function AiChatPage() {
           {
             role: 'assistant',
             content: finalResult!.answer,
-            citations: finalResult!.citations as AiCitation[],
+            citations: finalResult!.citations.map((c) => ({ nodeId: c.nodeId, title: c.title })),
             latencyMs: finalResult!.latencyMs,
             model: finalResult!.model,
-            tokenCount: finalResult!.tokensUsed,
+            tokenCount: finalResult!.usage?.totalTokens ?? tokenCount,
           },
         ])
       } else if (accumulated.length > 0) {
@@ -233,6 +277,7 @@ export default function AiChatPage() {
           },
         ])
       }
+      await invalidateConversations()
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         // User cancelled — commit what we have
@@ -255,7 +300,7 @@ export default function AiChatPage() {
       setStreamTokenCount(0)
       abortRef.current = null
     }
-  }, [client, query, entryNodeId, workspaceId, conversationId, messages])
+  }, [client, query, entryNodeId, workspaceId, conversationId, invalidateConversations])
 
   const handleKeyDown = React.useCallback(
     (e: React.KeyboardEvent) => {
@@ -271,6 +316,82 @@ export default function AiChatPage() {
     [send, streaming, stopStreaming],
   )
 
+  // Resume a persisted conversation
+  const resumeConversation = React.useCallback(
+    async (id: string) => {
+      if (client === null) return
+      stopStreaming()
+      try {
+        const detail = await client.conversation(id)
+        setConversationId(detail.id)
+        setMessages(detail.messages.filter((m) => m.role !== 'SYSTEM').map(storedToBubble))
+        setError(null)
+        // Restore the entry node used in this conversation if present.
+        const lastMeta = [...detail.messages]
+          .reverse()
+          .find((m) => m.role === 'ASSISTANT' && typeof m.metadata.entryNodeId === 'string')
+        if (lastMeta !== undefined && typeof lastMeta.metadata.entryNodeId === 'string') {
+          setEntryNodeId(lastMeta.metadata.entryNodeId)
+        }
+      } catch (err) {
+        toast.error('Could not load conversation', {
+          description: err instanceof Error ? err.message : undefined,
+        })
+      }
+    },
+    [client, stopStreaming],
+  )
+
+  // Start a new conversation
+  const startNew = React.useCallback(() => {
+    stopStreaming()
+    setConversationId(null)
+    setMessages([])
+    setError(null)
+  }, [stopStreaming])
+
+  // Delete a conversation
+  const deleteConversation = React.useCallback(
+    async (id: string) => {
+      if (client === null) return
+      try {
+        await client.deleteConversation(id)
+        toast.success('Conversation deleted')
+        if (conversationId === id) {
+          startNew()
+        }
+        void conversationsQuery.refetch()
+      } catch (err) {
+        toast.error('Delete failed', {
+          description: err instanceof Error ? err.message : undefined,
+        })
+      }
+    },
+    [client, conversationId, startNew, conversationsQuery],
+  )
+
+  // Rename a conversation
+  const submitRename = React.useCallback(
+    async (id: string) => {
+      if (client === null) return
+      const title = renameValue.trim()
+      setRenamingId(null)
+      if (title === '') return
+      try {
+        await client.renameConversation(id, title)
+        toast.success('Conversation renamed')
+        void conversationsQuery.refetch()
+      } catch (err) {
+        toast.error('Rename failed', {
+          description: err instanceof Error ? err.message : undefined,
+        })
+      }
+    },
+    [client, renameValue, conversationsQuery],
+  )
+
+  const conversations = conversationsQuery.data ?? []
+
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col">
       <PageHeader
@@ -284,8 +405,87 @@ export default function AiChatPage() {
       </PageHeader>
 
       <div className="flex flex-1 gap-4 overflow-hidden">
-        {/* Settings sidebar */}
-        <div className="hidden w-64 shrink-0 space-y-4 md:block">
+        {/* History sidebar */}
+        <div className="hidden w-60 shrink-0 flex-col gap-3 md:flex">
+          <Button
+            variant="outline"
+            className="w-full justify-start gap-2"
+            onClick={startNew}
+            disabled={streaming}
+          >
+            <Plus className="size-4" />
+            New chat
+          </Button>
+
+          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+            <p className="text-muted-foreground flex items-center gap-1 px-1 text-[10px] font-medium tracking-wider uppercase">
+              <History className="size-3" />
+              History
+            </p>
+            {conversations.length === 0 && (
+              <p className="text-muted-foreground px-1 py-2 text-xs">
+                No conversations yet — your chats will appear here.
+              </p>
+            )}
+            {conversations.map((conversation) => (
+              <div
+                key={conversation.id}
+                className={`group flex items-center gap-1 rounded-md px-2 py-1.5 text-xs transition-colors ${
+                  conversationId === conversation.id
+                    ? 'bg-accent text-accent-foreground'
+                    : 'hover:bg-accent/50'
+                }`}
+              >
+                {renamingId === conversation.id ? (
+                  <input
+                    autoFocus
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void submitRename(conversation.id)
+                      if (e.key === 'Escape') setRenamingId(null)
+                    }}
+                    onBlur={() => void submitRename(conversation.id)}
+                    className="bg-background h-6 w-full rounded border px-1 text-xs outline-none"
+                  />
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => void resumeConversation(conversation.id)}
+                      className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                      title={conversation.title}
+                    >
+                      <MessageSquare className="size-3 shrink-0 opacity-60" />
+                      <span className="truncate">{conversation.title}</span>
+                    </button>
+                    <span className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
+                      <button
+                        type="button"
+                        aria-label="Rename conversation"
+                        className="text-muted-foreground hover:text-foreground rounded p-0.5"
+                        onClick={() => {
+                          setRenamingId(conversation.id)
+                          setRenameValue(conversation.title)
+                        }}
+                      >
+                        <Pencil className="size-3" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Delete conversation"
+                        className="text-muted-foreground hover:text-destructive rounded p-0.5"
+                        onClick={() => void deleteConversation(conversation.id)}
+                      >
+                        <Trash2 className="size-3" />
+                      </button>
+                    </span>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm">Configuration</CardTitle>
@@ -307,11 +507,6 @@ export default function AiChatPage() {
                   ))}
                 </select>
               </div>
-              {conversationId !== null && (
-                <Badge variant="outline" className="text-[10px]">
-                  Session: {conversationId.slice(0, 8)}…
-                </Badge>
-              )}
               {streaming && (
                 <Badge variant="outline" className="gap-1.5 border-amber-500/40 text-[10px]">
                   <LoaderCircle className="size-3 animate-spin" />

@@ -1,6 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useApi } from '@/components/dashboard/api-provider'
+import { useApiQuery } from '@/hooks/use-api-query'
+import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,29 +19,7 @@ import {
   MessageSquare,
 } from 'lucide-react'
 
-interface ApprovalRequest {
-  id: string
-  proposalId: string
-  requestedAction: string
-  nodeType: string
-  title: string
-  content: string
-  classification: string
-  proposedById: string | null
-  agentIdentityId: string | null
-  status: string
-  resolvedById: string | null
-  resolutionNote: string | null
-  publishedNodeId: string | null
-  createdAt: string
-  resolvedAt: string | null
-}
-
-interface ApprovalOverview {
-  pending: number
-  approved: number
-  rejected: number
-}
+import type { ApprovalOverview, ProposalApprovalRecord } from '@/lib/api/types'
 
 const STATUS_COLORS: Record<string, string> = {
   PENDING: 'bg-amber-100 text-amber-700 border-amber-200',
@@ -56,60 +37,53 @@ const CLASSIFICATION_COLORS: Record<string, string> = {
 }
 
 export default function ApprovalsPage() {
-  const [overview, setOverview] = useState<ApprovalOverview | null>(null)
-  const [approvals, setApprovals] = useState<ApprovalRequest[]>([])
-  const [loading, setLoading] = useState(true)
+  const { client } = useApi()
   const [filterStatus, setFilterStatus] = useState('')
   const [resolvingId, setResolvingId] = useState<string | null>(null)
   const [resolveNote, setResolveNote] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    try {
-      const params = new URLSearchParams()
-      if (filterStatus) params.set('status', filterStatus)
-
-      const [overviewRes, approvalsRes] = await Promise.allSettled([
-        fetch('/api/v1/proposals/approvals/overview').then((r) => r.json()),
-        fetch(`/api/v1/proposals/approvals?${params.toString()}`).then((r) => r.json()),
-      ])
-
-      if (overviewRes.status === 'fulfilled') setOverview(overviewRes.value)
-      if (approvalsRes.status === 'fulfilled')
-        setApprovals(Array.isArray(approvalsRes.value) ? approvalsRes.value : [])
-    } catch {
-      // Silently handle
-    } finally {
-      setLoading(false)
-    }
-  }, [filterStatus])
-
-  useEffect(() => {
-    void fetchData()
-  }, [fetchData])
+  const overviewQuery = useApiQuery<ApprovalOverview>(['approval-overview'], (api) =>
+    api.proposalApprovalOverview(),
+  )
+  const approvalsQuery = useApiQuery<ProposalApprovalRecord[]>(
+    ['approvals', filterStatus],
+    (api) => api.proposalApprovals({ status: filterStatus || undefined }),
+    { placeholderData: (prev) => prev },
+  )
+  const loading = overviewQuery.isLoading || approvalsQuery.isLoading
+  const fetchData = () => {
+    void overviewQuery.refetch()
+    void approvalsQuery.refetch()
+  }
 
   const resolveApproval = async (approvalId: string, resolution: 'APPROVED' | 'REJECTED') => {
+    if (client === null) return
     setResolvingId(approvalId)
     try {
-      await fetch(`/api/v1/proposals/approvals/${approvalId}/resolve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resolution, note: resolveNote || undefined }),
+      await client.resolveProposalApproval(approvalId, {
+        decision: resolution,
+        note: resolveNote || undefined,
       })
+      toast.success(`Approval ${resolution === 'APPROVED' ? 'approved' : 'rejected'}`)
       setResolveNote('')
       setExpandedId(null)
-      void fetchData()
-    } catch {
-      // Handle error
+      fetchData()
+    } catch (err) {
+      toast.error('Failed to resolve approval', {
+        description: err instanceof Error ? err.message : undefined,
+      })
     } finally {
       setResolvingId(null)
     }
   }
 
-  const pending = overview?.pending ?? 0
-  const approved = overview?.approved ?? 0
-  const rejected = overview?.rejected ?? 0
+  const overview = overviewQuery.data ?? null
+  const approvals = approvalsQuery.data ?? []
+
+  const pending = overview?.pendingApprovals ?? 0
+  const approved = overview?.approvedToday ?? 0
+  const rejected = overview?.rejectedToday ?? 0
 
   return (
     <div className="space-y-8">

@@ -1,10 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useApi } from '@/components/dashboard/api-provider'
+import { useApiQuery } from '@/hooks/use-api-query'
+import { toast } from 'sonner'
 import {
   Bot,
   Plus,
@@ -43,8 +46,7 @@ const ENV_COLORS: Record<string, string> = {
 }
 
 export default function AgentIdentityPage() {
-  const [agents, setAgents] = useState<AgentIdentity[]>([])
-  const [loading, setLoading] = useState(true)
+  const { client, bootstrap } = useApi()
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [newSlug, setNewSlug] = useState('')
@@ -52,47 +54,35 @@ export default function AgentIdentityPage() {
   const [newDesc, setNewDesc] = useState('')
   const [creating, setCreating] = useState(false)
 
-  const fetchAgents = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await fetch('/api/v1/agents', {
-        headers: { Authorization: 'Bearer demo-token' },
-      })
-      const data = await res.json()
-      setAgents(data.data ?? [])
-    } catch {
-      // silent
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void fetchAgents()
-  }, [fetchAgents])
+  const agentsQuery = useApiQuery<AgentIdentity[]>(
+    ['agent-identities'],
+    (api) => api.agentIdentities() as Promise<AgentIdentity[]>,
+  )
+  const agents = agentsQuery.data ?? []
+  const loading = agentsQuery.isLoading
+  const fetchAgents = () => void agentsQuery.refetch()
 
   const handleCreate = async () => {
-    if (!newName.trim() || !newSlug.trim()) return
+    if (!newName.trim() || !newSlug.trim() || client === null || bootstrap === null) return
     setCreating(true)
     try {
-      await fetch('/api/v1/agents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer demo-token' },
-        body: JSON.stringify({
-          organizationId: '00000000-0000-0000-0000-000000000001',
-          name: newName.trim(),
-          slug: newSlug.trim(),
-          description: newDesc.trim() || undefined,
-          environment: newEnv,
-        }),
+      await client.createAgentIdentity({
+        organizationId: bootstrap.organizationId,
+        name: newName.trim(),
+        slug: newSlug.trim(),
+        description: newDesc.trim() || undefined,
+        environment: newEnv,
       })
+      toast.success('Agent identity created')
       setShowCreate(false)
       setNewName('')
       setNewSlug('')
       setNewDesc('')
-      void fetchAgents()
-    } catch {
-      // silent
+      fetchAgents()
+    } catch (err) {
+      toast.error('Failed to create agent identity', {
+        description: err instanceof Error ? err.message : undefined,
+      })
     } finally {
       setCreating(false)
     }

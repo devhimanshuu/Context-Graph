@@ -41,6 +41,7 @@ export const ROUTES = {
   agentPlayground: '/dashboard/agent-playground',
   agentIdentities: '/dashboard/agents/identity',
   multiAgentDemo: '/dashboard/agent-playground/multi-agent',
+  apiMcp: '/dashboard/api',
 } as const
 
 export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES]
@@ -88,4 +89,5 @@ export const ROUTE_TITLES: Readonly<Record<string, string>> = {
   [ROUTES.agentPlayground]: 'Agent Playground',
   [ROUTES.agentIdentities]: 'Agent Identities',
   [ROUTES.multiAgentDemo]: 'Multi-Agent Demo',
+  [ROUTES.apiMcp]: 'API & MCP',
 } as const

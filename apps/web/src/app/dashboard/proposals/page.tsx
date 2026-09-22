@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ROUTES } from '@/constants'
+import { useApiQuery } from '@/hooks/use-api-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,27 +20,7 @@ import {
   Layers,
 } from 'lucide-react'
 
-interface ProposalOverview {
-  total: number
-  proposed: number
-  pendingApproval: number
-  published: number
-  rejected: number
-}
-
-interface Proposal {
-  id: string
-  nodeType: string
-  title: string
-  content: string
-  classification: string
-  status: string
-  decision: string | null
-  decisionReason: string | null
-  publishedNodeId: string | null
-  createdAt: string
-  updatedAt: string
-}
+import type { ProposalOverview, ProposalRecord } from '@/lib/api/types'
 
 const STATUS_COLORS: Record<string, string> = {
   PROPOSED: 'bg-blue-100 text-blue-700 border-blue-200',
@@ -60,44 +41,31 @@ const CLASSIFICATION_COLORS: Record<string, string> = {
 
 export default function ProposalsPage() {
   const router = useRouter()
-  const [overview, setOverview] = useState<ProposalOverview | null>(null)
-  const [proposals, setProposals] = useState<Proposal[]>([])
-  const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState('')
   const [filterNodeType, setFilterNodeType] = useState('')
 
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    try {
-      const params = new URLSearchParams()
-      if (filterStatus) params.set('status', filterStatus)
-      if (filterNodeType) params.set('nodeType', filterNodeType)
-      params.set('limit', '50')
+  const overviewQuery = useApiQuery<ProposalOverview>(['proposal-overview'], (api) =>
+    api.proposalOverview(),
+  )
+  const proposalsQuery = useApiQuery<ProposalRecord[]>(
+    ['proposals', filterStatus],
+    (api) => api.proposals({ status: filterStatus || undefined, limit: 50 }),
+    { placeholderData: (prev) => prev },
+  )
+  const loading = overviewQuery.isLoading || proposalsQuery.isLoading
+  const fetchData = () => {
+    void overviewQuery.refetch()
+    void proposalsQuery.refetch()
+  }
 
-      const [overviewRes, proposalsRes] = await Promise.allSettled([
-        fetch('/api/v1/knowledge/proposals/overview').then((r) => r.json()),
-        fetch(`/api/v1/knowledge/proposals?${params.toString()}`).then((r) => r.json()),
-      ])
+  const overview = overviewQuery.data ?? null
+  const proposals = proposalsQuery.data ?? []
 
-      if (overviewRes.status === 'fulfilled') setOverview(overviewRes.value)
-      if (proposalsRes.status === 'fulfilled')
-        setProposals(Array.isArray(proposalsRes.value) ? proposalsRes.value : [])
-    } catch {
-      // Silently handle — dashboard still renders with defaults.
-    } finally {
-      setLoading(false)
-    }
-  }, [filterStatus, filterNodeType])
-
-  useEffect(() => {
-    void fetchData()
-  }, [fetchData])
-
-  const total = overview?.total ?? 0
-  const published = overview?.published ?? 0
-  const pendingApproval = overview?.pendingApproval ?? 0
-  const rejected = overview?.rejected ?? 0
-  const proposed = overview?.proposed ?? 0
+  const total = overview?.totalProposals ?? 0
+  const published = overview?.publishedProposals ?? 0
+  const pendingApproval = overview?.pendingProposals ?? 0
+  const rejected = overview?.rejectedProposals ?? 0
+  const proposed = Math.max(total - published - pendingApproval - rejected, 0)
 
   return (
     <div className="space-y-8">
@@ -284,7 +252,8 @@ export default function ProposalsPage() {
                     >
                       {proposal.classification}
                     </Badge>
-                    {proposal.publishedNodeId && (
+                    {(proposal as unknown as { publishedNodeId?: string | null })
+                      .publishedNodeId && (
                       <Badge
                         variant="outline"
                         className="border-emerald-200 bg-emerald-50 text-emerald-700"
