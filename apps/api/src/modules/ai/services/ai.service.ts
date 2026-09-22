@@ -1,6 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { type ILogger, LOGGER } from '../../../common/interfaces/logger.interface'
 import { getRequestId } from '../../../common/context/request-context'
+import { TraversalStrategy } from '../../graph/domain/traversal'
+import { IContextAssemblyService } from '../../pipeline/context-assembly/context-assembly.service'
 import type {
   AssembledContext,
   AiChatRequest,
@@ -35,6 +37,9 @@ const DEFAULT_BUDGET = {
   maxSourceCount: 15,
 }
 
+/** Injection token for the provider gateway registry (see AiModule). */
+const MODEL_GATEWAYS = 'MODEL_GATEWAYS'
+
 /**
  * AI Service — orchestrates the full AI pipeline.
  *
@@ -67,6 +72,9 @@ export class AiService implements IAiService {
     @Inject(ICostCalculator) private readonly costCalculator: ICostCalculator,
     @Inject(ITokenEstimator) private readonly tokenEstimator: ITokenEstimator,
     @Inject(IContextCompressor) private readonly compressor: IContextCompressor,
+    @Inject(MODEL_GATEWAYS) private readonly gateways: Map<string, IModelGateway>,
+    @Inject(IContextAssemblyService)
+    private readonly contextAssembly: IContextAssemblyService,
   ) {}
 
   async chat(request: AiChatRequest): Promise<AiResponse> {
@@ -83,10 +91,8 @@ export class AiService implements IAiService {
       // 1. Route to provider
       const config = await this.modelRouter.route(request)
 
-      // 2. Build context (caller provides assembled context)
-      // For this implementation, we'll create a mock assembled context
-      // In production, this would come from the ContextGraph pipeline
-      const context = await this.buildMockContext(request)
+      // 2. Assemble authorized context via the ContextGraph pipeline
+      const context = await this.buildAssembledContext(request)
 
       // 3. Apply budget constraints
       const budgetResult = this.budgetManager.fitToBudget(context.items, DEFAULT_BUDGET)
@@ -204,8 +210,8 @@ export class AiService implements IAiService {
       // 1. Route to provider
       const config = await this.modelRouter.route(request)
 
-      // 2. Build context
-      const context = await this.buildMockContext(request)
+      // 2. Assemble authorized context via the ContextGraph pipeline
+      const context = await this.buildAssembledContext(request)
 
       // 3. Apply budget constraints
       const budgetResult = this.budgetManager.fitToBudget(context.items, DEFAULT_BUDGET)
@@ -321,23 +327,54 @@ export class AiService implements IAiService {
   }
 
   private async getGateway(provider: ModelProvider): Promise<IModelGateway> {
-    // In production, this would use the gateway registry
-    // For now, throw if gateway not available
-    throw new Error(`Gateway for ${provider} not registered`)
+    const gateway = this.gateways.get(provider)
+    if (gateway === undefined) {
+      throw new Error(
+        `No model gateway registered for provider "${provider}". ` +
+          `Configure the provider credentials (e.g. GROQ_API_KEY) or pick another provider.`,
+      )
+    }
+    return gateway
   }
 
-  private async buildMockContext(request: AiChatRequest): Promise<AssembledContext> {
-    // In production, this would call the ContextGraph pipeline
-    // For now, return a mock context
-    return {
-      items: [],
-      totalTokens: 0,
-      sourceCount: 0,
-      contextVersion: '1.0.0',
-      contextHash: 'mock-hash',
-      assembledAt: new Date().toISOString(),
+  /**
+   * Assembles authorized context for the request via the ContextGraph
+   * context-assembly pipeline (reachability → rules → budget). The caller's
+   * identity drives authorization; the LLM never widens access.
+   */
+  private async buildAssembledContext(request: AiChatRequest): Promise<AssembledContext> {
+    const assembly = await this.contextAssembly.assemble(request.user, {
+      workspaceId: request.workspaceId,
+      entryNodeId: request.entryNodeId,
+      maxDepth: 3,
+      strategy: TraversalStrategy.BFS,
+      tokenBudget: DEFAULT_BUDGET.maxTokens,
+    })
+
+    const candidates = assembly.candidates.map((candidate, index) => ({
+      id: candidate.id,
+      title: candidate.title,
+      content: candidate.content,
+      type: candidate.type,
+      importance: candidate.importance,
+      distance: candidate.distance,
+      compressionHint: 'FULL' as const,
+      inclusionReason: 'PIPELINE_INCLUDED',
+      complianceTags: candidate.complianceTags,
+      organizationId: request.user.organizationId,
+      departmentId: null,
+      workspaceId: request.workspaceId,
+      version: null,
+      rank: index + 1,
+      tokens: Math.ceil(candidate.content.length / 4),
+    }))
+
+    return this.assembler.assemble({
+      candidates,
       entryNodeId: request.entryNodeId,
       workspaceId: request.workspaceId,
-    }
+      organizationId: request.user.organizationId,
+      contextVersion: assembly.packageId,
+    })
   }
 }

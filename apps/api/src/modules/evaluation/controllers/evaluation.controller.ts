@@ -16,7 +16,7 @@ import type {
 } from '../domain/evaluation.types'
 
 @ApiTags('Evaluations')
-@Controller('api/v1/evaluations')
+@Controller('evaluations')
 export class EvaluationController {
   constructor(
     private readonly evaluationService: EvaluationService,

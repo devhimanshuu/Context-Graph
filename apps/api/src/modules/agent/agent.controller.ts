@@ -50,7 +50,7 @@ import type {
 } from './agent.dto'
 
 @ApiTags('Agent Orchestration')
-@Controller('api/v1/agents')
+@Controller('agents')
 export class AgentController {
   constructor(
     @Inject(IAgentRuntime) private readonly runtime: IAgentRuntime,

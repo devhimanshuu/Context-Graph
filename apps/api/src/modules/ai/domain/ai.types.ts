@@ -1,4 +1,4 @@
-import type { EntityId, Score, Timestamp } from '@contextgraph/types'
+import type { AuthenticatedUser, EntityId, Score, Timestamp } from '@contextgraph/types'
 
 // ---------------------------------------------------------------------------
 // Context Assembly Types
@@ -279,6 +279,8 @@ export interface AiResponse {
   readonly latencyMs: number
   readonly requestId: string
   readonly pipelineVersion: string
+  /** Persisted conversation this turn belongs to (null when persistence is unavailable). */
+  readonly conversationId?: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -293,6 +295,8 @@ export interface AiChatRequest {
   readonly conversationId: string | null
   readonly conversationHistory: readonly ConversationTurn[]
   readonly configuration: Partial<ModelConfiguration>
+  /** Authenticated principal — used to assemble only authorized context. */
+  readonly user: AuthenticatedUser
 }
 
 // ---------------------------------------------------------------------------

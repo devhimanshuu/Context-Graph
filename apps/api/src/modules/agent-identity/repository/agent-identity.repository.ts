@@ -392,7 +392,7 @@ export class AgentSessionPrismaRepository implements IAgentSessionRepository {
     agentIdentityId: string
     credentialId: string
     organizationId: string
-    environment: string
+    environment: AgentEnvironment
     capabilities: readonly string[]
     expiresAt: Date
   }): Promise<AgentSession> {
@@ -403,9 +403,9 @@ export class AgentSessionPrismaRepository implements IAgentSessionRepository {
         agentIdentityId: data.agentIdentityId,
         credentialId: data.credentialId,
         organizationId: data.organizationId,
-        environment: data.environment as Prisma.AgentEnvironmentEnum,
+        environment: data.environment,
         capabilities: data.capabilities as unknown as Prisma.InputJsonValue,
-        status: 'ACTIVE' as Prisma.AgentSessionStatusEnum,
+        status: 'ACTIVE',
         expiresAt: data.expiresAt,
       },
     })

@@ -1,6 +1,7 @@
 /* ContextGraph — database seed (Phase 2) Seeds a realistic, domain-agnostic dataset: */
 import 'dotenv/config'
 import dotenv from 'dotenv'
+import bcrypt from 'bcryptjs'
 import {
   PrismaClient,
   type ComplianceTag,
@@ -28,6 +29,13 @@ function log(message: string): void {
   // eslint-disable-next-line no-console -- standalone tooling output
   console.log(`[seed] ${message}`)
 }
+
+/**
+ * Shared demo password for every seeded user (dev/demo only — override with
+ * SEED_USER_PASSWORD; never reuse in production). Hashed once with bcrypt.
+ */
+const DEMO_PASSWORD = process.env.SEED_USER_PASSWORD ?? 'ContextGraph-demo-2026!'
+const DEMO_PASSWORD_HASH = bcrypt.hashSync(DEMO_PASSWORD, 10)
 
 async function main(): Promise<void> {
   log('Seeding ContextGraph database...')
@@ -171,6 +179,7 @@ async function main(): Promise<void> {
         departmentId: clinical.id,
         email: 'amelia.chen@meridian.health',
         name: 'Dr. Amelia Chen',
+        passwordHash: DEMO_PASSWORD_HASH,
         role: 'ADMIN',
         permissionLevel: 'ADMIN',
         complianceClearance: 'CRITICAL',
@@ -183,6 +192,7 @@ async function main(): Promise<void> {
         departmentId: cardiology.id,
         email: 'raj.patel@meridian.health',
         name: 'Dr. Raj Patel',
+        passwordHash: DEMO_PASSWORD_HASH,
         role: 'HOD',
         permissionLevel: 'WRITE',
         complianceClearance: 'RESTRICTED',
@@ -195,6 +205,7 @@ async function main(): Promise<void> {
         departmentId: oncology.id,
         email: 'sofia.rossi@meridian.health',
         name: 'Dr. Sofia Rossi',
+        passwordHash: DEMO_PASSWORD_HASH,
         role: 'EDITOR',
         permissionLevel: 'WRITE',
         complianceClearance: 'SENSITIVE',
@@ -207,6 +218,7 @@ async function main(): Promise<void> {
         departmentId: nursing.id,
         email: 'michael.okafor@meridian.health',
         name: 'Michael Okafor, RN',
+        passwordHash: DEMO_PASSWORD_HASH,
         role: 'VIEWER',
         permissionLevel: 'READ',
         complianceClearance: 'STANDARD',
@@ -219,6 +231,7 @@ async function main(): Promise<void> {
         departmentId: quality.id,
         email: 'lena.weber@meridian.health',
         name: 'Dr. Lena Weber',
+        passwordHash: DEMO_PASSWORD_HASH,
         role: 'QUALITY',
         permissionLevel: 'WRITE',
         complianceClearance: 'SENSITIVE',
@@ -231,6 +244,7 @@ async function main(): Promise<void> {
         departmentId: compliance.id,
         email: 'tom.becker@meridian.health',
         name: 'Tom Becker',
+        passwordHash: DEMO_PASSWORD_HASH,
         role: 'AUDITOR',
         permissionLevel: 'READ',
         complianceClearance: 'CRITICAL',
@@ -243,6 +257,7 @@ async function main(): Promise<void> {
         departmentId: heliosOps.id,
         email: 'nina.kowalski@helios.capital',
         name: 'Nina Kowalski',
+        passwordHash: DEMO_PASSWORD_HASH,
         role: 'ADMIN',
         permissionLevel: 'ADMIN',
         complianceClearance: 'CRITICAL',
@@ -255,6 +270,7 @@ async function main(): Promise<void> {
         departmentId: heliosOps.id,
         email: 'omar.haddad@helios.capital',
         name: 'Omar Haddad',
+        passwordHash: DEMO_PASSWORD_HASH,
         role: 'EDITOR',
         permissionLevel: 'WRITE',
         complianceClearance: 'RESTRICTED',

@@ -2,7 +2,9 @@ import { Module } from '@nestjs/common'
 import { PipelineModule } from '../pipeline/pipeline.module'
 import { AuthorizationModule } from '../authorization/authorization.module'
 import { AiController } from './controllers/ai.controller'
+import { ConversationsController } from './controllers/conversations.controller'
 import { AiService } from './services/ai.service'
+import { ConversationService } from './services/conversation.service'
 import { ContextAssembler } from './services/context-assembler.service'
 import { ContextBudgetManager } from './services/context-budget-manager.service'
 import { GenericTokenEstimator } from './services/token-estimator.service'
@@ -46,10 +48,11 @@ import {
  */
 @Module({
   imports: [PipelineModule, AuthorizationModule],
-  controllers: [AiController],
+  controllers: [AiController, ConversationsController],
   providers: [
     // Core services
     { provide: IAiService, useClass: AiService },
+    ConversationService,
     { provide: IContextAssembler, useClass: ContextAssembler },
     { provide: IContextBudgetManager, useClass: ContextBudgetManager },
     { provide: ITokenEstimator, useClass: GenericTokenEstimator },
@@ -60,6 +63,9 @@ import {
     { provide: IResponseValidator, useClass: ResponseValidator },
     { provide: IContextHasher, useClass: ContextHasher },
     { provide: ICostCalculator, useClass: CostCalculator },
+
+    // Context assembly (authorized context from the ContextGraph pipeline)
+    // IContextAssemblyService is provided and exported by PipelineModule.
 
     // Provider adapters
     GroqAdapter,

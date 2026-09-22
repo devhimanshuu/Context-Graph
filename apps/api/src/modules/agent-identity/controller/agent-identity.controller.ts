@@ -15,43 +15,32 @@ Provides:
   GET    /api/v1/agents/:id/capabilities        — List capabilities
   POST   /api/v1/agents/:id/capabilities        — Grant capability
   DELETE /api/v1/agents/:id/capabilities/:cap   — Revoke capability
-  GET    /api/v1/agent/me                       — Agent self-identity
+  GET    /api/v1/agents/me                      — Agent self-identity (API key auth)
 
-Security: All endpoints require authenticated admin/HOD user.
-Agent cannot modify its own identity through these endpoints. */
+Security: The global JwtAuthGuard enforces authentication and the user comes
+from the verified JWT via @CurrentUser — no hardcoded principals. The
+`/agents/me` endpoint authenticates with an agent API key instead of a JWT
+and is marked @Public(). */
 
-import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common'
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import type {
   AuthenticatedUser,
   IdentityCapability,
   AgentIdentityStatus,
   AgentEnvironment,
 } from '@contextgraph/types'
+import { CurrentUser } from '../../../common/decorators/current-user.decorator'
+import { Public } from '../../../common/decorators/public.decorator'
+import { UnauthorizedException } from '../../../common/exceptions/unauthorized.exception'
 import { AgentIdentityRegistry } from '../services/agent-identity-registry'
 import { AgentCredentialService } from '../services/agent-credential.service'
 import { AgentCapabilityService } from '../services/agent-capability.service'
 import { AgentAuthService } from '../services/agent-auth.service'
 import { CredentialHashService } from '../services/credential-hash.service'
 
-/** Extract user from JWT — simplified for the demo. In production, use NestJS Guards. */
-function extractUser(headers: Record<string, string | undefined>): AuthenticatedUser | null {
-  const authHeader = headers['authorization']
-  if (authHeader === undefined || !authHeader.startsWith('Bearer ')) return null
-
-  // In production, validate JWT and extract claims
-  // For demo, return a default admin user
-  return {
-    id: '00000000-0000-0000-0000-000000000001',
-    organizationId: '00000000-0000-0000-0000-000000000001',
-    departmentId: null,
-    email: 'admin@contextgraph.dev',
-    name: 'Admin',
-    role: 'ADMIN',
-    permissionLevel: 'ADMIN',
-    complianceClearance: 'CRITICAL',
-  }
-}
-
+@ApiBearerAuth()
+@ApiTags('Agents')
 @Controller('agents')
 export class AgentIdentityController {
   constructor(
@@ -64,7 +53,7 @@ export class AgentIdentityController {
 
   @Post()
   async createAgent(
-    @Headers() headers: Record<string, string | undefined>,
+    @CurrentUser() user: AuthenticatedUser,
     @Body()
     body: {
       organizationId: string
@@ -72,37 +61,28 @@ export class AgentIdentityController {
       slug: string
       description?: string
       purpose?: string
-      environment?: string
+      environment: string
       ownerUserId?: string
     },
   ) {
-    const user = extractUser(headers)
-    if (user === null)
-      return { success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } }
-
     const agent = await this.registry.create(user, {
       organizationId: body.organizationId,
       name: body.name,
       slug: body.slug,
       description: body.description,
       purpose: body.purpose,
-      environment: (body.environment ?? 'DEVELOPMENT') as AgentEnvironment,
+      environment: body.environment as AgentEnvironment,
       ownerUserId: body.ownerUserId,
     })
-
     return { success: true, data: agent }
   }
 
   @Get()
   async listAgents(
-    @Headers() headers: Record<string, string | undefined>,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('status') status?: string,
     @Query('environment') environment?: string,
   ) {
-    const user = extractUser(headers)
-    if (user === null)
-      return { success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } }
-
     const agents = await this.registry.list(user.organizationId, {
       status: status as AgentIdentityStatus | undefined,
       environment: environment as AgentEnvironment | undefined,
@@ -112,17 +92,15 @@ export class AgentIdentityController {
   }
 
   @Get('count')
-  async countAgents(@Headers() headers: Record<string, string | undefined>) {
-    const user = extractUser(headers)
-    if (user === null)
-      return { success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } }
-
+  async countAgents(@CurrentUser() user: AuthenticatedUser) {
     const count = await this.registry.count(user.organizationId)
     return { success: true, data: { count } }
   }
 
+  /** Agent self-identity — authenticated with the agent's API key, not a JWT. */
+  @Public()
   @Get('me')
-  async getAgentIdentity(@Headers() headers: Record<string, string | undefined>) {
+  async getAgentIdentity(headers: Record<string, string | undefined> = {}) {
     const apiKey = headers['x-api-key'] ?? headers['authorization']?.replace('Bearer ', '')
     if (apiKey === undefined)
       return { success: false, error: { code: 'UNAUTHORIZED', message: 'API key required' } }
@@ -151,67 +129,40 @@ export class AgentIdentityController {
   }
 
   @Get(':id')
-  async getAgent(@Headers() headers: Record<string, string | undefined>, @Param('id') id: string) {
-    const user = extractUser(headers)
-    if (user === null)
-      return { success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } }
-
+  async getAgent(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     const agent = await this.registry.findById(id)
     if (agent === null)
       return { success: false, error: { code: 'NOT_FOUND', message: 'Agent not found' } }
+    if (agent.organizationId !== user.organizationId)
+      return { success: false, error: { code: 'FORBIDDEN', message: 'Wrong organization' } }
 
     return { success: true, data: agent }
   }
 
   @Patch(':id')
   async updateAgent(
-    @Headers() headers: Record<string, string | undefined>,
+    @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Body() body: { name?: string; description?: string; purpose?: string; ownerUserId?: string },
   ) {
-    const user = extractUser(headers)
-    if (user === null)
-      return { success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } }
-
     const agent = await this.registry.update(user, id, body)
     return { success: true, data: agent }
   }
 
   @Post(':id/suspend')
-  async suspendAgent(
-    @Headers() headers: Record<string, string | undefined>,
-    @Param('id') id: string,
-  ) {
-    const user = extractUser(headers)
-    if (user === null)
-      return { success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } }
-
+  async suspendAgent(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     const agent = await this.registry.suspend(user, id)
     return { success: true, data: agent }
   }
 
   @Post(':id/revoke')
-  async revokeAgent(
-    @Headers() headers: Record<string, string | undefined>,
-    @Param('id') id: string,
-  ) {
-    const user = extractUser(headers)
-    if (user === null)
-      return { success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } }
-
+  async revokeAgent(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     const agent = await this.registry.revoke(user, id)
     return { success: true, data: agent }
   }
 
   @Post(':id/reactivate')
-  async reactivateAgent(
-    @Headers() headers: Record<string, string | undefined>,
-    @Param('id') id: string,
-  ) {
-    const user = extractUser(headers)
-    if (user === null)
-      return { success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } }
-
+  async reactivateAgent(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     const agent = await this.registry.reactivate(user, id)
     return { success: true, data: agent }
   }
@@ -219,28 +170,18 @@ export class AgentIdentityController {
   // ── Credentials ──────────────────────────────────────────────────────
 
   @Get(':id/credentials')
-  async listCredentials(
-    @Headers() headers: Record<string, string | undefined>,
-    @Param('id') id: string,
-  ) {
-    const user = extractUser(headers)
-    if (user === null)
-      return { success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } }
-
+  async listCredentials(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    await this.assertSameOrganization(user, id)
     const credentials = await this.credentialService.list(id)
     return { success: true, data: credentials }
   }
 
   @Post(':id/credentials')
   async createCredential(
-    @Headers() headers: Record<string, string | undefined>,
+    @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Body() body: { name: string; expiresAt?: string },
   ) {
-    const user = extractUser(headers)
-    if (user === null)
-      return { success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } }
-
     const result = await this.credentialService.create(user, id, {
       name: body.name,
       expiresAt: body.expiresAt ?? undefined,
@@ -252,28 +193,20 @@ export class AgentIdentityController {
 
   @Post(':id/credentials/:credentialId/revoke')
   async revokeCredential(
-    @Headers() headers: Record<string, string | undefined>,
+    @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Param('credentialId') credentialId: string,
   ) {
-    const user = extractUser(headers)
-    if (user === null)
-      return { success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } }
-
     await this.credentialService.revoke(user, id, credentialId)
     return { success: true, data: { revoked: true } }
   }
 
   @Post(':id/credentials/:credentialId/rotate')
   async rotateCredential(
-    @Headers() headers: Record<string, string | undefined>,
+    @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Param('credentialId') credentialId: string,
   ) {
-    const user = extractUser(headers)
-    if (user === null)
-      return { success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } }
-
     const result = await this.credentialService.rotate(user, id, credentialId)
     return { success: true, data: result }
   }
@@ -281,28 +214,18 @@ export class AgentIdentityController {
   // ── Capabilities ────────────────────────────────────────────────────
 
   @Get(':id/capabilities')
-  async listCapabilities(
-    @Headers() headers: Record<string, string | undefined>,
-    @Param('id') id: string,
-  ) {
-    const user = extractUser(headers)
-    if (user === null)
-      return { success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } }
-
+  async listCapabilities(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    await this.assertSameOrganization(user, id)
     const capabilities = await this.capabilityService.list(id)
     return { success: true, data: capabilities }
   }
 
   @Post(':id/capabilities')
   async grantCapability(
-    @Headers() headers: Record<string, string | undefined>,
+    @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Body() body: { capability: IdentityCapability; expiresAt?: string },
   ) {
-    const user = extractUser(headers)
-    if (user === null)
-      return { success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } }
-
     const cap = await this.capabilityService.grant(
       user,
       id,
@@ -314,15 +237,19 @@ export class AgentIdentityController {
 
   @Delete(':id/capabilities/:capability')
   async revokeCapability(
-    @Headers() headers: Record<string, string | undefined>,
+    @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Param('capability') capability: string,
   ) {
-    const user = extractUser(headers)
-    if (user === null)
-      return { success: false, error: { code: 'UNAUTHORIZED', message: 'Auth required' } }
-
     await this.capabilityService.revoke(user, id, capability as IdentityCapability)
     return { success: true, data: { revoked: true } }
+  }
+
+  /** Tenant guard for read paths that bypass the service-layer checks. */
+  private async assertSameOrganization(user: AuthenticatedUser, agentId: string): Promise<void> {
+    const agent = await this.registry.findById(agentId)
+    if (agent !== null && agent.organizationId !== user.organizationId) {
+      throw new UnauthorizedException('Agent belongs to a different organization')
+    }
   }
 }

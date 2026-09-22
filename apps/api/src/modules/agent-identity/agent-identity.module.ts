@@ -17,6 +17,7 @@ This module is imported by:
 - AppModule (for REST endpoints) */
 
 import { Module } from '@nestjs/common'
+import { UsersModule } from '../users/users.module'
 
 // Repositories
 import {
@@ -46,6 +47,7 @@ import { AgentMcpAuthenticator } from './services/agent-mcp-authenticator'
 import { AgentIdentityController } from './controller/agent-identity.controller'
 
 @Module({
+  imports: [UsersModule],
   controllers: [AgentIdentityController],
   providers: [
     // Repositories

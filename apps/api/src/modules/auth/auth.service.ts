@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
+import bcrypt from 'bcryptjs'
 import { type AccessTokenPayload, type AuthenticatedUser, UserStatus } from '@contextgraph/types'
 import { IUsersRepository } from '../users/user.repository'
 import { UnauthorizedException } from '../../common/exceptions/unauthorized.exception'
@@ -23,11 +24,22 @@ export class AuthService implements IAuthService {
 
   async login(input: LoginInput): Promise<LoginResponseDto> {
     const user = await this.usersRepository.findByEmail(input.organizationId, input.email)
+    // Uniform error for unknown email / wrong password — never leak which one failed.
     if (user === null) {
       throw new UnauthorizedException('Invalid credentials')
     }
     if (user.status !== UserStatus.ACTIVE) {
       throw new ForbiddenException('Account is not active')
+    }
+
+    // Credential check: users backed by an external IdP (no local hash) cannot
+    // log in through this endpoint.
+    if (user.passwordHash === null) {
+      throw new UnauthorizedException('Invalid credentials')
+    }
+    const passwordMatches = await bcrypt.compare(input.password ?? '', user.passwordHash)
+    if (!passwordMatches) {
+      throw new UnauthorizedException('Invalid credentials')
     }
 
     const payload: AccessTokenPayload = {

@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: contextgraph
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/contextgraph?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/contextgraph?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: ci-only-secret-at-least-16-chars
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply database migrations
+        run: npm run db:deploy
+
+      - name: Seed database
+        run: npm run db:seed
+
+      - name: Build packages
+        run: npm run build:packages
+
+      - name: Typecheck API
+        run: npm run typecheck -w @contextgraph/api
+
+      - name: Typecheck web
+        run: npm run typecheck -w @contextgraph/web
+
+      - name: Lint API
+        run: npm run lint -w @contextgraph/api
+
+      - name: Lint web
+        run: npm run lint -w @contextgraph/web
+
+      - name: Unit tests (API + web)
+        run: npm test
+
+      - name: Build all
+        run: npm run build

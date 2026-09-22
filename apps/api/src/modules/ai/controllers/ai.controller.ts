@@ -6,22 +6,19 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator'
 import type { AiChatRequest, AiResponse } from '../domain/ai.types'
 import { IAiService } from '../domain/ai.interfaces'
 import { AiChatRequestDto } from '../dto/ai-chat-request.dto'
+import { ConversationService } from '../services/conversation.service'
 
 /**
- * AI Controller — exposes the AI chat endpoint.
+ * AI Controller — exposes the AI chat endpoints.
  *
- * POST /api/v1/ai/chat
+ * POST /api/v1/ai/chat         — non-streaming generation
+ * POST /api/v1/ai/chat/stream  — Server-Sent Events generation
  *
- * Request:
- * - userQuery: The user's question
- * - entryNodeId: Starting node for context retrieval
- * - workspaceId: Workspace scope
- * - conversationId: Optional conversation thread
- * - conversationHistory: Previous turns
- * - configuration: Optional model overrides
- *
- * Response:
- * - AiResponse with answer, citations, usage, etc.
+ * Both endpoints persist every turn (user + assistant) to the caller's
+ * conversation history. Subsequent requests can pass the returned
+ * conversationId to continue the thread; history is loaded server-side
+ * from the persisted store (any client-supplied history is ignored when
+ * a conversationId is present).
  *
  * Security:
  * - Requires JWT authentication (handled by global guard)
@@ -32,7 +29,10 @@ import { AiChatRequestDto } from '../dto/ai-chat-request.dto'
 @ApiTags('AI')
 @Controller('ai')
 export class AiController {
-  constructor(@Inject(IAiService) private readonly aiService: IAiService) {}
+  constructor(
+    @Inject(IAiService) private readonly aiService: IAiService,
+    private readonly conversations: ConversationService,
+  ) {}
 
   @Post('chat')
   @HttpCode(HttpStatus.OK)
@@ -42,20 +42,48 @@ export class AiController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() request: AiChatRequestDto,
   ): Promise<AiResponse> {
+    const conversationId = request.conversationId ?? null
+
+    // Load persisted history when continuing an existing conversation.
+    const conversationHistory =
+      conversationId !== null
+        ? await this.conversations.loadHistory(user, conversationId)
+        : (request.conversationHistory ?? []).map((turn) => ({
+            role: turn.role,
+            content: turn.content,
+            timestamp: turn.timestamp ?? new Date().toISOString(),
+          }))
+
     const chatRequest: AiChatRequest = {
       userQuery: request.userQuery,
       entryNodeId: request.entryNodeId,
       workspaceId: request.workspaceId,
-      conversationId: request.conversationId ?? null,
-      conversationHistory: (request.conversationHistory ?? []).map((turn) => ({
-        role: turn.role,
-        content: turn.content,
-        timestamp: turn.timestamp ?? new Date().toISOString(),
-      })),
+      conversationId,
+      conversationHistory,
       configuration: (request.configuration as Record<string, unknown>) ?? {},
+      user,
     }
 
-    return this.aiService.chat(chatRequest)
+    const response = await this.aiService.chat(chatRequest)
+
+    const persisted = await this.conversations.recordTurn({
+      user,
+      conversationId,
+      workspaceId: request.workspaceId ?? null,
+      userQuery: request.userQuery,
+      answer: response.answer,
+      citations: response.citations,
+      metadata: {
+        model: response.model,
+        provider: response.provider,
+        latencyMs: response.latencyMs,
+        requestId: response.requestId,
+        entryNodeId: request.entryNodeId ?? null,
+        workspaceId: request.workspaceId ?? null,
+      },
+    })
+
+    return { ...response, conversationId: persisted.conversationId || null }
   }
 
   @Post('chat/stream')
@@ -72,17 +100,26 @@ export class AiController {
     res.setHeader('Connection', 'keep-alive')
     res.setHeader('X-Accel-Buffering', 'no')
 
+    const conversationId = request.conversationId ?? null
+
+    // Load persisted history when continuing an existing conversation.
+    const conversationHistory =
+      conversationId !== null
+        ? await this.conversations.loadHistory(user, conversationId)
+        : (request.conversationHistory ?? []).map((turn) => ({
+            role: turn.role,
+            content: turn.content,
+            timestamp: turn.timestamp ?? new Date().toISOString(),
+          }))
+
     const chatRequest: AiChatRequest = {
       userQuery: request.userQuery,
       entryNodeId: request.entryNodeId,
       workspaceId: request.workspaceId,
-      conversationId: request.conversationId ?? null,
-      conversationHistory: (request.conversationHistory ?? []).map((turn) => ({
-        role: turn.role,
-        content: turn.content,
-        timestamp: turn.timestamp ?? new Date().toISOString(),
-      })),
+      conversationId,
+      conversationHistory,
       configuration: (request.configuration as Record<string, unknown>) ?? {},
+      user,
     }
 
     try {
@@ -92,8 +129,28 @@ export class AiController {
         res.write(sseChunk)
       })
 
-      // Send final result
-      const finalChunk = `data: ${JSON.stringify({ type: 'done', result })}\n\n`
+      const persisted = await this.conversations.recordTurn({
+        user,
+        conversationId,
+        workspaceId: request.workspaceId ?? null,
+        userQuery: request.userQuery,
+        answer: result.answer,
+        citations: result.citations,
+        metadata: {
+          model: result.model,
+          provider: result.provider,
+          latencyMs: result.latencyMs,
+          requestId: result.requestId,
+          entryNodeId: request.entryNodeId ?? null,
+          workspaceId: request.workspaceId ?? null,
+        },
+      })
+
+      // Send final result with the persisted conversation id.
+      const finalChunk = `data: ${JSON.stringify({
+        type: 'done',
+        result: { ...result, conversationId: persisted.conversationId || null },
+      })}\n\n`
       res.write(finalChunk)
       res.end()
     } catch (error) {

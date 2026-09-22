@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { PassportStrategy } from '@nestjs/passport'
 import { ExtractJwt, Strategy } from 'passport-jwt'
+import type { Request } from 'express'
 import { type AccessTokenPayload, type AuthenticatedUser, UserStatus } from '@contextgraph/types'
 import { ConfigService } from '../../config/config.service'
 import { IUsersRepository } from '../users/user.repository'
@@ -14,7 +15,15 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     @Inject(IUsersRepository) private readonly usersRepository: IUsersRepository,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        // Server-Sent Events connections (EventSource) cannot set headers.
+        // Allow the token via ?access_token= for those streams only.
+        (req: Request) => {
+          const token = req?.query?.access_token
+          return typeof token === 'string' && token.length > 0 ? token : null
+        },
+      ]),
       ignoreExpiration: false,
       secretOrKey: config.jwtAccessSecret,
     })

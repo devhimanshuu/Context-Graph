@@ -8,7 +8,8 @@
   },
   "workspaces": [
     "packages/*",
-    "apps/api"
+    "apps/api",
+    "apps/web"
   ],
   "scripts": {
     "dev:web": "npm --prefix apps/web run dev",
@@ -21,7 +22,7 @@
     "typecheck": "npm run build:packages && npm run typecheck -w @contextgraph/api && npm --prefix apps/web run typecheck",
     "lint": "npm run lint -w @contextgraph/api && npm --prefix apps/web run lint",
     "format": "npm run format -w @contextgraph/api && npm --prefix apps/web run format",
-    "test": "npm run test -w @contextgraph/api && npm --prefix apps/web run test",
+    "test": "npm run test -w @contextgraph/api && npm run test -w apps/web",
     "db:generate": "npm run db:generate -w @contextgraph/api",
     "db:validate": "npm run db:validate -w @contextgraph/api",
     "db:migrate": "npm run db:migrate -w @contextgraph/api",

@@ -236,6 +236,7 @@ model Organization {
   eventSubscriptions EventSubscription[]
   agentIdentities    AgentIdentity[]
   agentSessions      AgentIdentitySession[]
+  conversations      Conversation[]
 
   @@index([status])
   @@index([industry])
@@ -316,6 +317,9 @@ model User {
   department          Department?         @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   email               String
   name                String
+  /// Bcrypt hash of the user's password. Null for users that authenticate
+  /// exclusively through an external IdP (Clerk/SSO).
+  passwordHash        String?
   role                Role
   permissionLevel     PermissionLevel     @default(READ)
   complianceClearance ComplianceClearance @default(STANDARD)
@@ -348,6 +352,7 @@ model User {
   approvalResolved  ProposalApprovalRequest[] @relation("ApprovalResolvedBy")
   ownedAgents       AgentIdentity[]
   grantedAgentCaps  AgentIdentityCapability[]
+  conversations     Conversation[]
 
   @@unique([organizationId, email])
   @@unique([organizationId, authProviderUserId])
@@ -851,6 +856,43 @@ model IngestionJob {
 // declared via the Document, DocumentChunk, and IngestionJob models above.
 // The Document model declares relations to Organization, Workspace, Department,
 // and User. No additional changes to existing models are needed.
+
+// ===========================================================================
+// Retrieval — vector index (pgvector)
+// ===========================================================================
+
+/// A vector embedding attached to a document chunk or knowledge node.
+/// Backed by the pgvector extension; HNSW index accelerates cosine ANN search.
+/// Apply with: CREATE EXTENSION IF NOT EXISTS vector; (see migration SQL).
+model VectorChunk {
+  id             String   @id @default(uuid()) @db.Uuid
+  chunkId        String   @unique
+  nodeId         String   @db.Uuid
+  organizationId String   @db.Uuid
+  workspaceId    String   @db.Uuid
+  /// Embedding vector stored via pgvector. Prisma has no native vector type;
+  /// access goes through $queryRaw / Unsupported("vector").
+  embedding      Unsupported("vector(1536)")?
+  embeddingModel String
+  embeddingVersion String
+  contentHash    String
+  content        String
+  title          String
+  type           String
+  status         String
+  importance     Int      @default(0)
+  departmentId   String?  @db.Uuid
+  complianceTags String[] @default([])
+  chunkIndex     Int      @default(0)
+  totalChunks    Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([workspaceId])
+  @@index([nodeId])
+  @@index([organizationId, contentHash])
+}
 
 // ===========================================================================
 // Phase 15 — Agent Orchestration
@@ -1920,4 +1962,48 @@ model AgentIdentitySession {
   @@index([credentialId])
   @@index([organizationId, status])
   @@index([status, expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// AI Conversations (persisted chat history)
+// ---------------------------------------------------------------------------
+
+/// A persisted AI chat conversation scoped to a user within an organization.
+model Conversation {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @db.Uuid
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String        @db.Uuid
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId    String?       @db.Uuid
+  title          String        @default("New conversation")
+  messages       ChatMessage[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+
+  @@index([organizationId, userId, updatedAt])
+  @@index([organizationId, updatedAt])
+}
+
+/// A single message within an AI conversation.
+model ChatMessage {
+  id             String       @id @default(uuid()) @db.Uuid
+  conversationId String       @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           ChatRole
+  content        String
+  /// Serialized citation array for assistant messages.
+  citations      Json         @default("[]")
+  /// Metadata: model, token usage, latency, entry node, etc.
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
 }

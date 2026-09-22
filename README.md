@@ -8,18 +8,18 @@ hospital assessment ships purely as seed data.
 
 ## Tech stack
 
-| Layer         | Technology                                                   |
-| ------------- | ------------------------------------------------------------ |
-| Web           | Next.js 15 (App Router) · TypeScript · Tailwind · shadcn/ui  |
-| Backend       | **NestJS** (modular monolith) · TypeScript                   |
-| Database      | PostgreSQL · Prisma                                          |
-| Validation    | Zod                                                          |
-| Auth          | JWT + Passport (web signs in via Clerk)                      |
-| Cache / Queue | Redis · BullMQ (ready; memory binding by default)            |
-| API docs      | Swagger (`/docs`)                                            |
-| Logging       | Pino (structured)                                            |
-| Observability | Health checks, request/correlation ids, OpenTelemetry-ready  |
-| Testing       | Vitest · Supertest                                           |
+| Layer         | Technology                                                  |
+| ------------- | ----------------------------------------------------------- |
+| Web           | Next.js 15 (App Router) · TypeScript · Tailwind · shadcn/ui |
+| Backend       | **NestJS** (modular monolith) · TypeScript                  |
+| Database      | PostgreSQL · Prisma                                         |
+| Validation    | Zod                                                         |
+| Auth          | JWT + Passport (web signs in via Clerk)                     |
+| Cache / Queue | Redis · BullMQ (ready; memory binding by default)           |
+| API docs      | Swagger (`/docs`)                                           |
+| Logging       | Pino (structured)                                           |
+| Observability | Health checks, request/correlation ids, OpenTelemetry-ready |
+| Testing       | Vitest · Supertest                                          |
 
 ## Repository layout
 
@@ -37,24 +37,37 @@ docs/         architecture, database, application, graph-engine, backend
 
 ## Development setup
 
-Prerequisites: Node 20+, PostgreSQL (local or Supabase).
+Prerequisites: Node 20+, Docker (for Postgres + Redis) — or bring your own
+PostgreSQL/Redis.
 
 ```bash
-# 1. Dependencies (root workspace: packages + API)
+# 1. Dependencies (npm workspaces: packages + API + web)
 npm install
 
-# 2. Environment files (never commit real secrets)
-cp apps/api/.env.example apps/api/.env    # fill DATABASE_URL, JWT secrets
-cp apps/web/.env.example apps/web/.env    # fill Clerk keys (web)
+# 2. Infrastructure (PostgreSQL with pgvector + Redis)
+docker compose up -d
 
-# 3. Database (point DATABASE_URL at your local PostgreSQL or Supabase)
-npm run db:migrate     # apply migrations
+# 3. Environment files (never commit real secrets)
+cp apps/api/.env.example apps/api/.env    # fill DATABASE_URL, JWT secrets
+cp apps/web/.env.example apps/web/.env.local   # fill Clerk keys (web)
+
+# 4. Database (point DATABASE_URL at your local PostgreSQL or Supabase)
+npm run db:migrate     # apply migrations (incl. pgvector extension)
 npm run db:seed        # idempotent seed (healthcare + finance tenants)
 
-# 4. Run
+# 5. Run
 npm run dev:api        # NestJS on http://localhost:3001  (swagger at /docs)
 npm run dev:web        # Next.js on http://localhost:3000
 ```
+
+### Demo login
+
+The seeded demo tenant (`meridian-health`) ships with one user per role, all
+sharing the password from `SEED_USER_PASSWORD` (default
+`ContextGraph-demo-2026!`, must match `NEXT_PUBLIC_DEMO_PASSWORD` on the web).
+The dashboard picks a seeded user and signs in through the API with verified
+bcrypt credentials — every engine then renders permission-aware output for
+that role.
 
 ### Useful scripts (root)
 
@@ -83,8 +96,11 @@ npm run db:seed        # prisma db seed
 2. **Data layer** — Prisma schema, migrations, idempotent multi-tenant seed
 3. **Application layer** — service contracts, pipeline contracts, DI, events
 4. **Graph engine** — BFS traversal, cycle detection, metrics (69 unit tests)
-5. **Auth** — Clerk on the web, JWT + Passport contract on the API
-6. **NestJS backend** — modular monolith, 14 feature modules — _this phase_
+5. **Auth** — Clerk on the web, verified credentials + JWT on the API
+6. **NestJS backend** — modular monolith, 28 feature modules
+7. **Retrieval** — hybrid graph/semantic/lexical search (pgvector + RRF)
+8. **AI context layer** — grounded chat with citations, provider gateways
+9. **Agents & MCP** — governed agent runtime, tool authorization, MCP server
 
 ## Next phases
 
