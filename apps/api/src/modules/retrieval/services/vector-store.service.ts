@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { type ILogger, LOGGER } from '../../../common/interfaces/logger.interface'
 import type { EntityId } from '@contextgraph/types'
 import type {
@@ -6,7 +7,6 @@ import type {
   VectorSearchQuery,
   VectorSearchResult,
   VectorSearchHit,
-  VectorFilters,
 } from '../domain/retrieval.types'
 import { IVectorStore } from '../domain/retrieval.interfaces'
 
@@ -95,6 +95,8 @@ export class VectorStoreService implements IVectorStore {
       topK: query.topK,
     })
 
+    const filters = query.filters ?? {}
+
     const prismaClient = this.prisma as {
       $queryRaw: (
         strings: TemplateStringsArray,
@@ -102,7 +104,8 @@ export class VectorStoreService implements IVectorStore {
       ) => Promise<Record<string, unknown>[]>
     }
 
-    // Build the search query with organization filtering
+    // Build the search query with organization filtering. All filter values
+    // are passed as bind parameters — never interpolated into SQL text.
     const results = await prismaClient.$queryRaw`
       SELECT 
         chunk_id,
@@ -125,10 +128,35 @@ export class VectorStoreService implements IVectorStore {
         created_at,
         updated_at,
         1 - (embedding <=> ${query.embedding}::vector) as similarity
-      FROM vector_chunks
+      FROM "VectorChunk"
       WHERE organization_id = ${query.organizationId}
-        ${query.workspaceId ? prismaClient.$queryRaw`AND workspace_id = ${query.workspaceId}` : prismaClient.$queryRaw``}
-        ${this.buildFilterConditions(query.filters)}
+        ${
+          query.workspaceId
+            ? prismaClient.$queryRaw`AND workspace_id = ${query.workspaceId}`
+            : prismaClient.$queryRaw``
+        }
+        ${
+          filters.nodeTypes !== undefined && filters.nodeTypes.length > 0
+            ? prismaClient.$queryRaw`AND type IN (${Prisma.join(filters.nodeTypes)})`
+            : prismaClient.$queryRaw``
+        }
+        ${
+          filters.statuses !== undefined && filters.statuses.length > 0
+            ? prismaClient.$queryRaw`AND status IN (${Prisma.join(filters.statuses)})`
+            : prismaClient.$queryRaw``
+        }
+        ${
+          filters.complianceTags !== undefined && filters.complianceTags.length > 0
+            ? prismaClient.$queryRaw`AND compliance_tags && ARRAY[${Prisma.join(
+                filters.complianceTags,
+              )}]::text[]`
+            : prismaClient.$queryRaw``
+        }
+        ${
+          filters.departments !== undefined && filters.departments.length > 0
+            ? prismaClient.$queryRaw`AND department_id IN (${Prisma.join(filters.departments)})`
+            : prismaClient.$queryRaw``
+        }
       ORDER BY embedding <=> ${query.embedding}::vector
       LIMIT ${query.topK}
     `
@@ -214,32 +242,6 @@ export class VectorStoreService implements IVectorStore {
     if (!record) return null
 
     return this.mapRowToVectorRecord(record)
-  }
-
-  private buildFilterConditions(filters?: VectorFilters): string {
-    if (!filters) return ''
-
-    const conditions: string[] = []
-
-    if (filters.nodeTypes && filters.nodeTypes.length > 0) {
-      conditions.push(`type IN (${filters.nodeTypes.map((t) => `'${t}'`).join(',')})`)
-    }
-
-    if (filters.statuses && filters.statuses.length > 0) {
-      conditions.push(`status IN (${filters.statuses.map((s) => `'${s}'`).join(',')})`)
-    }
-
-    if (filters.complianceTags && filters.complianceTags.length > 0) {
-      conditions.push(
-        `compliance_tags && ARRAY[${filters.complianceTags.map((t) => `'${t}'`).join(',')}]`,
-      )
-    }
-
-    if (filters.departments && filters.departments.length > 0) {
-      conditions.push(`department_id IN (${filters.departments.map((d) => `'${d}'`).join(',')})`)
-    }
-
-    return conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : ''
   }
 
   private mapRowToVectorRecord(row: Record<string, unknown>): VectorRecord {

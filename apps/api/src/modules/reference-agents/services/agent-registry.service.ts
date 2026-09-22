@@ -148,7 +148,7 @@ export class ReferenceAgentRegistryService {
             riskLevel: result.decision.riskLevel,
             reasonCode: result.decision.reasonCode,
             explanation: result.decision.explanation,
-            violatedPolicies: result.decision.violatedPolicies,
+            violatedPolicies: [...result.decision.violatedPolicies],
             approvalRequired: result.decision.approvalRequired,
             approvalReason: result.decision.approvalReason ?? null,
             trace: result.decision.publicTrace.map((t: GuardrailResult) => ({

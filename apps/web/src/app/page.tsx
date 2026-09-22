@@ -17,12 +17,9 @@ import { HowItWorks } from '@/components/marketing/how-it-works'
 import { ArchitectureDiagram } from '@/components/marketing/architecture-diagram'
 import { ProductShowcase } from '@/components/marketing/product-showcase'
 import { ProductTour } from '@/components/marketing/product-tour'
-import { UseCases } from '@/components/marketing/use-cases'
 import { ComparisonTable } from '@/components/marketing/comparison-table'
 import { CaseStudies } from '@/components/marketing/case-studies'
-import { Pricing } from '@/components/marketing/pricing'
 import { Changelog } from '@/components/marketing/changelog'
-import { Integrations } from '@/components/marketing/integrations'
 import { ComplianceStrip } from '@/components/marketing/compliance-strip'
 import { FaqSection } from '@/components/marketing/faq-section'
 import { CtaSection } from '@/components/marketing/cta-section'
@@ -113,12 +110,9 @@ export default function LandingPage() {
         <ArchitectureDiagram />
         <HowItWorks />
         <ProductTour />
-        <UseCases />
         <ComparisonTable />
         <CaseStudies />
-        <Pricing />
         <Changelog />
-        <Integrations />
         <ComplianceStrip />
         <FaqSection />
         <CtaSection />

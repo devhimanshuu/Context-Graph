@@ -71,7 +71,7 @@ import type {
 import { uuid } from '../../common/utils/uuid'
 
 @ApiTags('Workflow Orchestration')
-@Controller('api/v1/workflows')
+@Controller('workflows')
 export class WorkflowController {
   constructor(
     @Inject(IWorkflowRuntime) private readonly runtime: IWorkflowRuntime,

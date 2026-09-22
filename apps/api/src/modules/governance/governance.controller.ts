@@ -54,7 +54,7 @@ import {
 } from './dto/governance.dto'
 
 @ApiTags('Governance')
-@Controller('api/v1/governance')
+@Controller('governance')
 export class GovernanceController {
   constructor(
     @Inject(IMembershipRepository) private readonly membershipRepo: IMembershipRepository,

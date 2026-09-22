@@ -48,7 +48,7 @@ const eventIdSchema = z.object({
 
 @ApiTags('Events')
 @ApiBearerAuth()
-@Controller('api/v1/events')
+@Controller('events')
 @UseGuards(JwtAuthGuard)
 export class EventsController {
   constructor(

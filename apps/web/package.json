@@ -1,5 +1,5 @@
 {
-  "name": "contextgraph",
+  "name": "@contextgraph/web",
   "version": "0.1.0",
   "private": true,
   "description": "ContextGraph - Enterprise Context Intelligence Platform",

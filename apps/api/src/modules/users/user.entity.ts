@@ -17,6 +17,8 @@ export class UserEntity extends BaseEntity {
     readonly departmentId: EntityId | null,
     readonly email: string,
     readonly name: string,
+    /** Bcrypt hash for local credential login; null for IdP-only users. */
+    readonly passwordHash: string | null,
     readonly role: Role,
     readonly permissionLevel: PermissionLevel,
     readonly complianceClearance: ComplianceClearance,

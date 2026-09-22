@@ -40,7 +40,7 @@ import { WriteBackService } from '../services/writeback.service'
 
 @ApiTags('Knowledge Proposals')
 @ApiBearerAuth()
-@Controller('api/v1/knowledge/proposals')
+@Controller('knowledge/proposals')
 @UseGuards(JwtAuthGuard)
 export class WriteBackController {
   constructor(private readonly writeBackService: WriteBackService) {}

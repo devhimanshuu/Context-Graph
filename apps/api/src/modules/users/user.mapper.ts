@@ -11,6 +11,7 @@ export function prismaUserToEntity(row: User): UserEntity {
     row.departmentId,
     row.email,
     row.name,
+    row.passwordHash,
     row.role,
     row.permissionLevel,
     row.complianceClearance,

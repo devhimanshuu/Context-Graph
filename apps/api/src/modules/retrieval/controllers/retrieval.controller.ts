@@ -18,7 +18,7 @@ import { SearchRetrievalDto } from '../dto/search-retrieval.dto'
  */
 @ApiTags('Retrieval')
 @ApiBearerAuth()
-@Controller('api/v1/retrieval')
+@Controller('retrieval')
 export class RetrievalController {
   private readonly logger = new Logger(RetrievalController.name)
 

@@ -20,8 +20,6 @@ import type {
   ReferenceRunResult,
   ReferenceAgentTraceStep,
   ReferenceAgentRole,
-  ReferenceAgentStatus,
-  ReferenceAgentOutput,
   ResearchResult,
   AnalysisResult,
   DecisionResult,
@@ -122,7 +120,7 @@ export class ReferenceSupervisor {
         trace,
       )
     } else {
-      research = this.timeoutResult('research', startTime)
+      research = this.timeoutResult('research', startTime) as ResearchResult
     }
 
     // ── Step 2: Analysis ─────────────────────────────────────────────
@@ -133,7 +131,7 @@ export class ReferenceSupervisor {
         trace,
       )
     } else {
-      analysis = this.timeoutResult('analysis', startTime)
+      analysis = this.timeoutResult('analysis', startTime) as AnalysisResult
     }
 
     // ── Step 3: Decision ─────────────────────────────────────────────
@@ -151,7 +149,7 @@ export class ReferenceSupervisor {
         trace,
       )
     } else {
-      decision = this.timeoutResult('decision', startTime)
+      decision = this.timeoutResult('decision', startTime) as DecisionResult
     }
 
     // ── Step 4: Synthesis ────────────────────────────────────────────
@@ -168,7 +166,7 @@ export class ReferenceSupervisor {
         trace,
       )
     } else {
-      synthesis = this.timeoutResult('synthesis', startTime)
+      synthesis = this.timeoutResult('synthesis', startTime) as SynthesisResult
     }
 
     const totalDurationMs = Math.round(performance.now() - startTime)
@@ -241,13 +239,77 @@ export class ReferenceSupervisor {
     return performance.now() - startTime < this.config.totalTimeoutMs
   }
 
-  private timeoutResult(agentName: string, startTime: number): ReferenceAgentOutput {
+  private timeoutResult(
+    agentName: ReferenceAgentRole,
+    startTime: number,
+  ): ResearchResult | AnalysisResult | DecisionResult | SynthesisResult {
+    switch (agentName) {
+      case 'research':
+        return this.researchTimeout(startTime)
+      case 'analysis':
+        return this.analysisTimeout(startTime)
+      case 'decision':
+        return this.decisionTimeout(startTime)
+      default:
+        return this.synthesisTimeout(startTime)
+    }
+  }
+
+  private researchTimeout(startTime: number): ResearchResult {
     return {
-      role: agentName as ReferenceAgentRole,
-      status: 'TIMED_OUT' as ReferenceAgentStatus,
+      role: 'research',
+      status: 'FAILED',
+      findings: '',
+      contextReferences: [],
+      sourceNodeIds: [],
+      pipelineRunId: null,
+      contextItemsCount: 0,
+      tokensUsed: 0,
       durationMs: Math.round(performance.now() - startTime),
       error: `Agent timed out — supervisor budget exhausted`,
-    } as unknown as ReferenceAgentOutput
+    }
+  }
+
+  private analysisTimeout(startTime: number): AnalysisResult {
+    return {
+      role: 'analysis',
+      status: 'FAILED',
+      findings: '',
+      supportingSources: [],
+      risks: [],
+      unresolvedQuestions: [],
+      recommendedAction: null,
+      durationMs: Math.round(performance.now() - startTime),
+      error: `Agent timed out — supervisor budget exhausted`,
+    }
+  }
+
+  private decisionTimeout(startTime: number): DecisionResult {
+    return {
+      role: 'decision',
+      status: 'FAILED',
+      proposedAction: null,
+      actionCheck: null,
+      proposal: null,
+      reasonCode: 'TIMEOUT',
+      explanation: 'Agent timed out — supervisor budget exhausted',
+      supportingSources: [],
+      durationMs: Math.round(performance.now() - startTime),
+      error: `Agent timed out — supervisor budget exhausted`,
+    }
+  }
+
+  private synthesisTimeout(startTime: number): SynthesisResult {
+    return {
+      role: 'synthesis',
+      status: 'FAILED',
+      answer: '',
+      citations: [],
+      decisionSummary: '',
+      contextReferences: [],
+      durationMs: Math.round(performance.now() - startTime),
+      error: `Agent timed out — supervisor budget exhausted`,
+    }
   }
 
   private determineStatus(trace: ReferenceAgentTraceStep[]): 'COMPLETED' | 'FAILED' | 'TIMED_OUT' {

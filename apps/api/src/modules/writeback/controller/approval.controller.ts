@@ -41,7 +41,7 @@ type ResolveApprovalInput = z.infer<typeof resolveApprovalSchema>
 
 @ApiTags('Proposal Approvals')
 @ApiBearerAuth()
-@Controller('api/v1/proposals/approvals')
+@Controller('proposals/approvals')
 @UseGuards(JwtAuthGuard)
 export class ApprovalController {
   constructor(private readonly approvalService: ApprovalService) {}

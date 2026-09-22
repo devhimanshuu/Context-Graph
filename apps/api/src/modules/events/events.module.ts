@@ -45,10 +45,12 @@ import {
     { provide: IEventStore, useClass: InMemoryEventStore },
 
     // Outbox
-    { provide: IOutboxRepository, useClass: OutboxPrismaRepository },
+    OutboxPrismaRepository,
+    { provide: IOutboxRepository, useExisting: OutboxPrismaRepository },
 
     // SSE
-    { provide: ISseManager, useClass: SseManager },
+    SseManager,
+    { provide: ISseManager, useExisting: SseManager },
 
     // Service
     { provide: IEventService, useClass: EventService },

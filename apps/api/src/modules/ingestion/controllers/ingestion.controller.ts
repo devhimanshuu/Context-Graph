@@ -19,7 +19,7 @@ import { ContentType, DocumentVisibility } from '../domain/ingestion.types'
  * - POST /api/v1/ingestion/documents/:id/archive — Archive document
  * - DELETE /api/v1/ingestion/documents/:id — Delete document
  */
-@Controller('api/v1/ingestion')
+@Controller('ingestion')
 @UseGuards(JwtAuthGuard, OrganizationGuard)
 export class IngestionController {
   constructor(private readonly ingestionService: IngestionService) {}

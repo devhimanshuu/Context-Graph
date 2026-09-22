@@ -39,6 +39,7 @@ import {
   IWriteAuditLogger,
   IWriteBackGraphValidator,
   IWriteBackService,
+  IContentHashService,
 } from './domain/writeback.interfaces'
 import { GraphModule } from '../graph/graph.module'
 import { AuthorizationModule } from '../authorization/authorization.module'
@@ -54,10 +55,12 @@ import { RetrievalModule } from '../retrieval/retrieval.module'
     { provide: IApprovalRequestRepository, useClass: ApprovalRequestPrismaRepository },
 
     // Services
+    { provide: IContentHashService, useClass: ContentHashService },
     ContentHashService,
     ProposalValidator,
     { provide: IWriteBackGraphValidator, useClass: WriteBackGraphValidator },
     { provide: IApprovalService, useClass: ApprovalService },
+    ApprovalService,
     { provide: IWriteAuditLogger, useClass: WriteAuditLogger },
     { provide: IWriteBackService, useClass: WriteBackService },
     WriteBackService,

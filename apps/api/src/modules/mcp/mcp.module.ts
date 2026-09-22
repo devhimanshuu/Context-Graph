@@ -59,7 +59,8 @@ function createAuthenticator() {
   controllers: [McpController],
   providers: [
     // Registry (as abstract class + token for handler injection).
-    { provide: IMcpToolRegistry, useClass: McpToolRegistry },
+    McpToolRegistry,
+    { provide: IMcpToolRegistry, useExisting: McpToolRegistry },
     { provide: MCP_TOOL_REGISTRY, useExisting: IMcpToolRegistry },
 
     // Authentication.

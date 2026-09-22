@@ -51,6 +51,7 @@ import { ReachabilityService } from './services/reachability.service'
     IGraphTraversalEngine,
     WeightedTraversalEngine,
     GraphBuilder,
+    GraphValidator,
     IGraphCache,
   ],
 })
